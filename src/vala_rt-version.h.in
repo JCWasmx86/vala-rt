@@ -1,0 +1,94 @@
+/* vala_rt-version.h.in
+ *
+ * Copyright 2022 JCWasmx86
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#pragma once
+
+#if !defined(VALA_RT_INSIDE) && !defined(VALA_RT_COMPILATION)
+# error "Only <vala-rt.h> can be included directly."
+#endif
+
+/**
+ * SECTION:vala_rtversion
+ * @short_description: vala-rt version checking
+ *
+ * vala-rt provides macros to check the version of the library
+ * at compile-time
+ */
+
+/**
+ * VALA_RT_MAJOR_VERSION:
+ *
+ * vala-rt major version component (e.g. 1 if %VALA_RT_VERSION is 1.2.3)
+ */
+#define VALA_RT_MAJOR_VERSION (@MAJOR_VERSION@)
+
+/**
+ * VALA_RT_MINOR_VERSION:
+ *
+ * vala-rt minor version component (e.g. 2 if %VALA_RT_VERSION is 1.2.3)
+ */
+#define VALA_RT_MINOR_VERSION (@MINOR_VERSION@)
+
+/**
+ * VALA_RT_MICRO_VERSION:
+ *
+ * vala-rt micro version component (e.g. 3 if %VALA_RT_VERSION is 1.2.3)
+ */
+#define VALA_RT_MICRO_VERSION (@MICRO_VERSION@)
+
+/**
+ * VALA_RT_VERSION
+ *
+ * vala-rt version.
+ */
+#define VALA_RT_VERSION (@VERSION@)
+
+/**
+ * VALA_RT_VERSION_S:
+ *
+ * vala-rt version, encoded as a string, useful for printing and
+ * concatenation.
+ */
+#define VALA_RT_VERSION_S "@VERSION@"
+
+#define VALA_RT_ENCODE_VERSION(major,minor,micro) \
+        ((major) << 24 | (minor) << 16 | (micro) << 8)
+
+/**
+ * VALA_RT_VERSION_HEX:
+ *
+ * vala-rt version, encoded as an hexadecimal number, useful for
+ * integer comparisons.
+ */
+#define VALA_RT_VERSION_HEX \
+        (VALA_RT_ENCODE_VERSION (VALA_RT_MAJOR_VERSION, VALA_RT_MINOR_VERSION, VALA_RT_MICRO_VERSION))
+
+/**
+ * VALA_RT_CHECK_VERSION:
+ * @major: required major version
+ * @minor: required minor version
+ * @micro: required micro version
+ *
+ * Compile-time version checking. Evaluates to %TRUE if the version
+ * of vala-rt is greater than the required one.
+ */
+#define VALA_RT_CHECK_VERSION(major,minor,micro)   \
+        (VALA_RT_MAJOR_VERSION > (major) || \
+         (VALA_RT_MAJOR_VERSION == (major) && VALA_RT_MINOR_VERSION > (minor)) || \
+         (VALA_RT_MAJOR_VERSION == (major) && VALA_RT_MINOR_VERSION == (minor) && \
+          VALA_RT_MICRO_VERSION >= (micro)))
