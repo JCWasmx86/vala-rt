@@ -16,6 +16,6 @@ jobs:
     - name: Install dependencies
     - run: sudo apt install -y mesonbuild ninjabuild libelf-dev gcc libdwarf-dev libunwind-dev
     - name: configure
-      run: meson _build
+    - run: meson _build
     - name: compile
       run: ninja -C _build -j $(nproc)
