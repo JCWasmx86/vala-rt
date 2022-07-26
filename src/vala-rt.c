@@ -45,7 +45,7 @@ static void
 write_frame (int frame)
 {
   char data[20] = { 0 };
-  int  n = sprintf (data, "#%d", frame);
+  int  n = snprintf (data, 20, "#%d", frame);
   write (STDERR_FILENO, data, n);
   for (int i = n; i < 5; i++)
     write (STDERR_FILENO, " ", 1);
@@ -63,7 +63,7 @@ write_good_backtrace (const char *modulename, const char *mangled, const char *f
   size_t sum = len;
   write (STDERR_FILENO, filename, len);
   char data[20] = { 0 };
-  len = sprintf (data, ":%d", line);
+  len = snprintf (data, 20, ":%d", line);
   sum += len;
   write (STDERR_FILENO, data, len);
   for (size_t i = sum; i <= 50; i++)
@@ -122,7 +122,7 @@ __vala_rt_handle_signal (int signum)
       Dwfl_Line  *line = dwfl_getsrc (dwfl, addr);
       const char *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
       write_frame (frame);
-      if (line)
+      if (line && real_name)
         {
           int         nline;
           Dwarf_Addr  addr;
@@ -132,7 +132,7 @@ __vala_rt_handle_signal (int signum)
       else
         {
           char data[1024] = { 0 };
-          int  n = sprintf (data, "<%p> in %s\n", (void *)ip, module_name);
+          int  n = snprintf (data, 1024, "<%p> in %s\n", (void *)ip, module_name);
           write (STDERR_FILENO, data, n);
         }
       if (function_name && (!strcmp ("_vala_main", function_name) || !strcmp ("__libc_start_call_main", function_name)))
