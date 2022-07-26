@@ -1,7 +1,7 @@
 project('vala-rt', 'c',
           version: '0.1.0',
     meson_version: '>= 0.59.0',
-  default_options: [ 'warning_level=2',
+  default_options: [ 'warning_level=3',
                      'werror=false',
                      'c_std=gnu11',
                    ],
@@ -17,6 +17,9 @@ configure_file(
 )
 add_project_arguments([
   '-I' + meson.project_build_root(),
+  '-fno-omit-frame-pointer',
+  '-g3',
+  '-pedantic'
 ], language: 'c')
 
 
