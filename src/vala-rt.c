@@ -107,9 +107,9 @@ __vala_rt_handle_signal (int signum)
       dwfl = dwfl_begin (&callbacks);
       dwfl_linux_proc_report (dwfl, getpid ());
       dwfl_report_end (dwfl, NULL, NULL);
-      Dwarf_Addr   addr = (uintptr_t)ip;
-      Dwfl_Module *module = dwfl_addrmodule (dwfl, addr);
-      const char  *function_name = dwfl_module_addrname (module, addr);
+      Dwarf_Addr   ipaddr = (uintptr_t)ip;
+      Dwfl_Module *module = dwfl_addrmodule (dwfl, ipaddr);
+      const char  *function_name = dwfl_module_addrname (module, ipaddr);
       const char  *real_name = function_name;
       for (size_t i = 0; i < __vala_rt_n_mappings && function_name; i++)
         {
@@ -119,7 +119,7 @@ __vala_rt_handle_signal (int signum)
               break;
             }
         }
-      Dwfl_Line  *line = dwfl_getsrc (dwfl, addr);
+      Dwfl_Line  *line = dwfl_getsrc (dwfl, ipaddr);
       const char *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
       write_frame (frame);
       if (line && real_name)
