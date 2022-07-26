@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Run CI
-    - run: |
+      run: |
        sudo apt install -y mesonbuild ninjabuild libelf-dev gcc libdwarf-dev libunwind-dev
        meson _build
        ninja -C _build -j $(nproc)
