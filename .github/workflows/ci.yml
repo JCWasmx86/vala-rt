@@ -1,0 +1,21 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install dependencies
+    - run: sudo apt install -y mesonbuild ninjabuild libelf-dev gcc libdwarf-dev libunwind-dev
+    - name: configure
+      run: meson _build
+    - name: compile
+      run: ninja -C _build -j $(nproc)
