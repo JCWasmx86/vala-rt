@@ -13,9 +13,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Install dependencies
-    - run: sudo apt install -y mesonbuild ninjabuild libelf-dev gcc libdwarf-dev libunwind-dev
-    - name: configure
-    - run: meson _build
-    - name: compile
-    - run: ninja -C _build -j $(nproc)
+    - name: Run CI
+    - run: |
+       sudo apt install -y mesonbuild ninjabuild libelf-dev gcc libdwarf-dev libunwind-dev
+       meson _build
+       ninja -C _build -j $(nproc)
