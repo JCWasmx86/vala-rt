@@ -18,4 +18,4 @@ jobs:
     - name: configure
     - run: meson _build
     - name: compile
-      run: ninja -C _build -j $(nproc)
+    - run: ninja -C _build -j $(nproc)
