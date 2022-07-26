@@ -13,8 +13,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Run CI
-      run: |
-       sudo apt install -y mesonbuild ninjabuild libelf-dev gcc libdwarf-dev libunwind-dev
-       meson _build
-       ninja -C _build -j $(nproc)
+    - name: Install dependencies
+      run: sudo apt install -y mesonbuild libelf-dev gcc libdwarf-dev libunwind-dev ninja-build python3 python3-pip python3-setuptools python3-wheel ninja-build
+    - name: Install meson
+      run: pip3 install meson
+    - name: Configure
+      run: meson _build
+    - name: Compile
+      run: ninja -C _build -j $(nproc)
