@@ -17,41 +17,44 @@
  */
 #define UNW_LOCAL_ONLY
 
+#include "vala-rt.h"
 #include <elfutils/libdwfl.h>
 #include <libunwind.h>
 #include <signal.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <stdlib.h>
-#include "vala-rt.h"
 
 static void
 __vala_rt_handle_signal (int signum);
 
-static int __vala_rt_handler_triggered = 0;
-static size_t __vala_rt_n_mappings = 0;
+static int                         __vala_rt_handler_triggered = 0;
+static size_t                      __vala_rt_n_mappings = 0;
 static const struct vala_mappings *__vala_rt_mappings = NULL;
 
 void
-__vala_init_handlers (__attribute__((unused)) char **argv, const struct vala_mappings *mappings, size_t n_mappings)
+__vala_init_handlers (__attribute__ ((unused)) char **argv,
+                      const struct vala_mappings     *mappings,
+                      size_t                          n_mappings)
 {
-  signal(SIGSEGV, __vala_rt_handle_signal);
-  signal(SIGABRT, __vala_rt_handle_signal);
+  signal (SIGSEGV, __vala_rt_handle_signal);
+  signal (SIGABRT, __vala_rt_handle_signal);
   __vala_rt_mappings = mappings;
   __vala_rt_n_mappings = n_mappings;
 }
+
 static void
 write_frame (int frame)
 {
-  char data[20] = {0};
-  int n = sprintf(data, "#%d", frame);
+  char data[20] = { 0 };
+  int  n = sprintf (data, "#%d", frame);
   write (STDERR_FILENO, data, n);
   for (int i = n; i < 5; i++)
     write (STDERR_FILENO, " ", 1);
 }
 
 static void
-write_good_backtrace (const char *modulename, const char* mangled, const char* filename, int line)
+write_good_backtrace (const char *modulename, const char *mangled, const char *filename, int line)
 {
   size_t len = strlen (mangled);
   write (STDERR_FILENO, mangled, len);
@@ -61,8 +64,8 @@ write_good_backtrace (const char *modulename, const char* mangled, const char* f
   len = strlen (filename);
   size_t sum = len;
   write (STDERR_FILENO, filename, len);
-  char data[20] = {0};
-  len = sprintf(data, ":%d", line);
+  char data[20] = { 0 };
+  len = sprintf (data, ":%d", line);
   sum += len;
   write (STDERR_FILENO, data, len);
   for (size_t i = sum; i <= 50; i++)
@@ -71,6 +74,7 @@ write_good_backtrace (const char *modulename, const char* mangled, const char* f
   write (STDERR_FILENO, modulename, strlen (modulename));
   write (STDERR_FILENO, "\n", 1);
 }
+
 static void
 __vala_rt_handle_signal (int signum)
 {
@@ -78,37 +82,37 @@ __vala_rt_handle_signal (int signum)
     return;
   psignal (signum, "Received signal");
   __vala_rt_handler_triggered = 1;
-  unw_context_t uc = {0};
-	unw_getcontext(&uc);
-	unw_cursor_t cursor = {0};
-	unw_init_local(&cursor, &uc);
-  unw_step(&cursor);
+  unw_context_t uc = { 0 };
+  unw_getcontext (&uc);
+  unw_cursor_t cursor = { 0 };
+  unw_init_local (&cursor, &uc);
+  unw_step (&cursor);
   Dwfl *dwfl = NULL;
   // This uses so much malloc, but what can
   // it do at this point?
   int frame = 0;
-  while(unw_step(&cursor) > 0)
+  while (unw_step (&cursor) > 0)
     {
       unw_word_t ip;
-		  unw_get_reg(&cursor, UNW_REG_IP, &ip);
+      unw_get_reg (&cursor, UNW_REG_IP, &ip);
+      unw_word_t     offset;
+      char           name[128];
+      char          *debuginfo_path = NULL;
+      Dwfl_Callbacks callbacks = {
+        .find_elf = dwfl_linux_proc_find_elf,
+        .find_debuginfo = dwfl_standard_find_debuginfo,
+        .debuginfo_path = &debuginfo_path,
+      };
 
-		  unw_word_t offset;
-		  char name[128];
-      unw_get_proc_name(&cursor, name,sizeof(name), &offset);
-      char *debuginfo_path = NULL;
-      Dwfl_Callbacks callbacks={
-		    .find_elf=dwfl_linux_proc_find_elf,
-		    .find_debuginfo=dwfl_standard_find_debuginfo,
-		    .debuginfo_path=&debuginfo_path,
-	    };
+      unw_get_proc_name (&cursor, name, sizeof (name), &offset);
 
-	    dwfl = dwfl_begin(&callbacks);
-      dwfl_linux_proc_report (dwfl, getpid());
+      dwfl = dwfl_begin (&callbacks);
+      dwfl_linux_proc_report (dwfl, getpid ());
       dwfl_report_end (dwfl, NULL, NULL);
-      Dwarf_Addr addr = (uintptr_t)ip;
-	    Dwfl_Module* module= dwfl_addrmodule (dwfl, addr);
-	    const char *function_name = dwfl_module_addrname(module, addr);
-      const char *real_name = function_name;
+      Dwarf_Addr   addr = (uintptr_t)ip;
+      Dwfl_Module *module = dwfl_addrmodule (dwfl, addr);
+      const char  *function_name = dwfl_module_addrname (module, addr);
+      const char  *real_name = function_name;
       for (size_t i = 0; i < __vala_rt_n_mappings && function_name; i++)
         {
           if (!strcmp (__vala_rt_mappings[i].function_name, function_name))
@@ -117,29 +121,31 @@ __vala_rt_handle_signal (int signum)
               break;
             }
         }
-      Dwfl_Line *line=dwfl_getsrc (dwfl, addr);
-      const char *module_name = dwfl_module_info(module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+      Dwfl_Line  *line = dwfl_getsrc (dwfl, addr);
+      const char *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
       write_frame (frame);
       if (line)
         {
-          int nline;
-		      Dwarf_Addr addr;
-		      const char* filename=dwfl_lineinfo (line, &addr,&nline,NULL,NULL,NULL);
+          int         nline;
+          Dwarf_Addr  addr;
+          const char *filename = dwfl_lineinfo (line, &addr, &nline, NULL, NULL, NULL);
           write_good_backtrace (module_name, real_name, filename, nline);
         }
       else
         {
-          char data[1024] = {0};
-          int n = sprintf (data, "<%p> in %s\n", (void*)ip, module_name);
+          char data[1024] = { 0 };
+          int  n = sprintf (data, "<%p> in %s\n", (void *)ip, module_name);
           write (STDERR_FILENO, data, n);
         }
-      if (function_name && (!strcmp("_vala_main", function_name) || !strcmp ("__libc_start_call_main", function_name)))
+      if (function_name
+          && (!strcmp ("_vala_main", function_name)
+              || !strcmp ("__libc_start_call_main", function_name)))
         break;
-      dwfl_end(dwfl);
+      dwfl_end (dwfl);
       frame++;
-      fsync(STDERR_FILENO);
+      fsync (STDERR_FILENO);
     }
-  dwfl_end(dwfl);
-  fsync(STDERR_FILENO);
+  dwfl_end (dwfl);
+  fsync (STDERR_FILENO);
   abort ();
 }

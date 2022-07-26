@@ -1,0 +1,14 @@
+BasedOnStyle: GNU
+IndentWidth: 2
+ColumnLimit: 100
+AlwaysBreakAfterReturnType: All
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: true
+SpaceBeforeParens: Always
+AllowAllParametersOfDeclarationOnNextLine: false
+PackConstructorInitializers: NextLine
+PointerAlignment: Right
+SortIncludes: true
