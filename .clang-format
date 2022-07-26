@@ -1,6 +1,6 @@
 BasedOnStyle: GNU
 IndentWidth: 2
-ColumnLimit: 100
+ColumnLimit: 120
 AlwaysBreakAfterReturnType: All
 BinPackArguments: false
 BinPackParameters: false
@@ -12,3 +12,4 @@ AllowAllParametersOfDeclarationOnNextLine: false
 PackConstructorInitializers: NextLine
 PointerAlignment: Right
 SortIncludes: true
+ExperimentalAutoDetectBinPacking: 'true'

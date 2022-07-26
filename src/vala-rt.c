@@ -33,9 +33,7 @@ static size_t                      __vala_rt_n_mappings = 0;
 static const struct vala_mappings *__vala_rt_mappings = NULL;
 
 void
-__vala_init_handlers (__attribute__ ((unused)) char **argv,
-                      const struct vala_mappings     *mappings,
-                      size_t                          n_mappings)
+__vala_init_handlers (__attribute__ ((unused)) char **argv, const struct vala_mappings *mappings, size_t n_mappings)
 {
   signal (SIGSEGV, __vala_rt_handle_signal);
   signal (SIGABRT, __vala_rt_handle_signal);
@@ -137,9 +135,7 @@ __vala_rt_handle_signal (int signum)
           int  n = sprintf (data, "<%p> in %s\n", (void *)ip, module_name);
           write (STDERR_FILENO, data, n);
         }
-      if (function_name
-          && (!strcmp ("_vala_main", function_name)
-              || !strcmp ("__libc_start_call_main", function_name)))
+      if (function_name && (!strcmp ("_vala_main", function_name) || !strcmp ("__libc_start_call_main", function_name)))
         break;
       dwfl_end (dwfl);
       frame++;
