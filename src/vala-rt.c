@@ -18,6 +18,7 @@
 #define UNW_LOCAL_ONLY
 
 #include "vala-rt.h"
+#include "vala-rt-internal.h"
 #include <elfutils/libdwfl.h>
 #include <libunwind.h>
 #include <signal.h>
@@ -36,6 +37,8 @@ void
 __vala_init_handlers (__attribute__ ((unused)) char **argv, const struct vala_mappings *mappings, size_t n_mappings)
 {
   signal (SIGSEGV, __vala_rt_handle_signal);
+  signal (SIGILL, __vala_rt_handle_signal);
+  signal (SIGFPE, __vala_rt_handle_signal);
   signal (SIGABRT, __vala_rt_handle_signal);
   __vala_rt_mappings = mappings;
   __vala_rt_n_mappings = n_mappings;
@@ -110,17 +113,9 @@ __vala_rt_handle_signal (int signum)
       Dwarf_Addr   ipaddr = (uintptr_t)ip;
       Dwfl_Module *module = dwfl_addrmodule (dwfl, ipaddr);
       const char  *function_name = dwfl_module_addrname (module, ipaddr);
-      const char  *real_name = function_name;
-      for (size_t i = 0; i < __vala_rt_n_mappings && function_name; i++)
-        {
-          if (!strcmp (__vala_rt_mappings[i].function_name, function_name))
-            {
-              real_name = __vala_rt_mappings[i].demangled;
-              break;
-            }
-        }
-      Dwfl_Line  *line = dwfl_getsrc (dwfl, ipaddr);
-      const char *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+      const char  *real_name = __vala_rt_find_function (function_name);
+      Dwfl_Line   *line = dwfl_getsrc (dwfl, ipaddr);
+      const char  *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
       write_frame (frame);
       if (line && real_name)
         {

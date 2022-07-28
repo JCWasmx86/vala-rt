@@ -23,10 +23,15 @@
 #define VALA_RT_INSIDE
 #include "vala_rt-version.h"
 #undef VALA_RT_INSIDE
+
 struct vala_mappings
 {
   const char *function_name;
   const char *demangled;
 };
+
+extern const char  *__vala_debug_prefix;
+extern const char **__vala_extra_debug_files;
+
 extern void
 __vala_init_handlers (char **argv, const struct vala_mappings *mappings, size_t n_mappings);
