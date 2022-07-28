@@ -183,8 +183,7 @@ __vala_rt_find_function (const char *function, unw_cursor_t *cursor)
 
       // printf ("%s\n", signal_name (__bswap_constant_32 ((signal_id >> 32) & 0xFFFFFFFF)));
     }
-end:
-
+end:;
   const char *r = __vala_rt_find_function_internal (function);
   if (r)
     return r;
