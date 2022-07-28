@@ -104,7 +104,11 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
   unw_context_t uc = { 0 };
   unw_getcontext (&uc);
   unw_cursor_t cursor = { 0 };
+#ifdef UNW_INIT_SIGNAL_FRAME
   unw_init_local2 (&cursor, &uc, UNW_INIT_SIGNAL_FRAME);
+#else
+  unw_init_local (&cursor, &uc);
+#endif
   unw_step (&cursor);
   Dwfl *dwfl = NULL;
   // This uses so much malloc, but what can
