@@ -30,6 +30,8 @@ configure_file(
 )
 
 vala_rt_deps = [
+  dependency('libunwind'),
+  dependency('libdw')
 ]
 
 vala_rt_lib = static_library('vala-rt-' + api_version,
@@ -48,6 +50,7 @@ pkg.generate(
          name: 'vala-rt',
      filebase: 'vala-rt-' + api_version,
       version: meson.project_version(),
+      requires: ['libunwind', 'libdw'],
       subdirs: 'vala-rt',
   install_dir: join_paths(get_option('libdir'), 'pkgconfig')
 )
