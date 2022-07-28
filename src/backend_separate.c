@@ -27,7 +27,7 @@ const char *
 __vala_rt_load_from_file (const char *file, const char *function);
 
 const char *
-__vala_rt_find_function (const char *function)
+__vala_rt_find_function_internal (const char *function)
 {
   if (__vala_debug_prefix)
     {
@@ -60,6 +60,7 @@ __vala_rt_find_function (const char *function)
         }
       close (fd);
     }
+next_try:
   if (__vala_extra_debug_files)
     {
       for (size_t i = 0; __vala_extra_debug_files[i]; i++)
@@ -69,8 +70,7 @@ __vala_rt_find_function (const char *function)
             return demangled;
         }
     }
-next_try:
-  return function;
+  return NULL;
 }
 
 const char *

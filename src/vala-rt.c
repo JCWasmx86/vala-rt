@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #define UNW_LOCAL_ONLY
+#define _GNU_SOURCE
 
 #include "vala-rt.h"
 #include "vala-rt-internal.h"
+#include <dlfcn.h>
 #include <elfutils/libdwfl.h>
 #include <libunwind.h>
 #include <signal.h>
@@ -27,7 +29,12 @@
 #include <unistd.h>
 
 static void
-__vala_rt_handle_signal (int signum);
+__vala_rt_handle_signal (int signo, siginfo_t *info, void *_ctx);
+
+static void
+__vala_rt_add_handler (int signum);
+static const char *
+__vala_rt_find_function (const char *function, unw_cursor_t *cursor);
 
 static int                         __vala_rt_handler_triggered = 0;
 static size_t                      __vala_rt_n_mappings = 0;
@@ -36,14 +43,25 @@ static const struct vala_mappings *__vala_rt_mappings = NULL;
 void
 __vala_init_handlers (__attribute__ ((unused)) char **argv, const struct vala_mappings *mappings, size_t n_mappings)
 {
-  signal (SIGSEGV, __vala_rt_handle_signal);
-  signal (SIGILL, __vala_rt_handle_signal);
-  signal (SIGFPE, __vala_rt_handle_signal);
-  signal (SIGABRT, __vala_rt_handle_signal);
+  __vala_rt_add_handler (SIGSEGV);
+  __vala_rt_add_handler (SIGILL);
+  __vala_rt_add_handler (SIGFPE);
+  __vala_rt_add_handler (SIGABRT);
   __vala_rt_mappings = mappings;
   __vala_rt_n_mappings = n_mappings;
 }
 
+static void
+__vala_rt_add_handler (int signum)
+{
+  struct sigaction action;
+  memset (&action, 0, sizeof action);
+  action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_NODEFER | SA_RESETHAND;
+  sigfillset (&action.sa_mask);
+  sigdelset (&action.sa_mask, signum);
+  action.sa_sigaction = __vala_rt_handle_signal;
+  sigaction (signum, &action, NULL);
+}
 static void
 write_frame (int frame)
 {
@@ -77,7 +95,7 @@ write_good_backtrace (const char *modulename, const char *mangled, const char *f
 }
 
 static void
-__vala_rt_handle_signal (int signum)
+__vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, __attribute__ ((unused)) void *_ctx)
 {
   if (__vala_rt_handler_triggered)
     return;
@@ -86,7 +104,7 @@ __vala_rt_handle_signal (int signum)
   unw_context_t uc = { 0 };
   unw_getcontext (&uc);
   unw_cursor_t cursor = { 0 };
-  unw_init_local (&cursor, &uc);
+  unw_init_local2 (&cursor, &uc, UNW_INIT_SIGNAL_FRAME);
   unw_step (&cursor);
   Dwfl *dwfl = NULL;
   // This uses so much malloc, but what can
@@ -113,7 +131,7 @@ __vala_rt_handle_signal (int signum)
       Dwarf_Addr   ipaddr = (uintptr_t)ip;
       Dwfl_Module *module = dwfl_addrmodule (dwfl, ipaddr);
       const char  *function_name = dwfl_module_addrname (module, ipaddr);
-      const char  *real_name = __vala_rt_find_function (function_name);
+      const char  *real_name = __vala_rt_find_function (function_name, &cursor);
       Dwfl_Line   *line = dwfl_getsrc (dwfl, ipaddr);
       const char  *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
       write_frame (frame);
@@ -139,4 +157,37 @@ __vala_rt_handle_signal (int signum)
   dwfl_end (dwfl);
   fsync (STDERR_FILENO);
   abort ();
+}
+
+static const char *
+__vala_rt_find_function (const char *function, unw_cursor_t *cursor)
+{
+  void *name = dlsym (RTLD_NEXT, "g_signal_name");
+  if (!name)
+    return function;
+  const char *(*signal_name) (unsigned int) = name;
+  if ((strcmp ("g_signal_emit", function) == 0 || strcmp ("signal_emit_unlocked_R.isra.0", function) == 0) && name)
+    {
+      uint64_t signal_id = 0;
+      int      n = unw_get_reg (cursor, UNW_X86_64_RSI, &signal_id);
+      if (n != UNW_ESUCCESS)
+        {
+          printf ("Error: %s\n", unw_strerror (n));
+          goto end;
+        }
+      printf ("0x%lx\n", signal_id);
+      printf ("0x%x\n", (uint32_t)(signal_id & 0xFFFFFFFF));
+      printf ("0x%x\n", (uint32_t)(signal_id >> 32) & 0xFFFFFFFF);
+      printf ("0x%x\n", __bswap_constant_32 ((uint32_t)(signal_id & 0xFFFFFFFF)));
+      printf ("0x%x\n", __bswap_constant_32 ((uint32_t)(signal_id >> 32) & 0xFFFFFFFF));
+
+      // printf ("%s\n", signal_name (__bswap_constant_32 ((signal_id >> 32) & 0xFFFFFFFF)));
+    }
+end:
+
+  const char *r = __vala_rt_find_function_internal (function);
+  if (r)
+    return r;
+  // https://github.com/GNOME/glib/blob/ff8b43a15498aeafe392acd97d1ff1107252227e/gobject/gobject_gdb.py
+  return function;
 }

@@ -7,7 +7,7 @@
 static struct vala_mappings *__bdirect_mappings = NULL;
 
 const char *
-__vala_rt_find_function (const char *str)
+__vala_rt_find_function_internal (const char *str)
 {
   if (!__bdirect_mappings)
     {
@@ -22,5 +22,5 @@ __vala_rt_find_function (const char *str)
           return __bdirect_mappings[i].demangled;
         }
     }
-  return str;
+  return NULL;
 }
