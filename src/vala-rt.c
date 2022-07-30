@@ -23,10 +23,13 @@
 #include <dlfcn.h>
 #include <elfutils/libdwfl.h>
 #include <libunwind.h>
+#include <linux/limits.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#define MAX(a, b) (a > b ? a : b)
 
 static void
 __vala_rt_handle_signal (int signo, siginfo_t *info, void *_ctx);
@@ -35,6 +38,10 @@ static void
 __vala_rt_add_handler (int signum);
 static const char *
 __vala_rt_find_function (const char *function, unw_cursor_t *cursor);
+static const char *
+find_signal (const char *library, const char *function_name);
+static void
+format_signal_name (char *into, const char *demangled);
 
 static int                         __vala_rt_handler_triggered = 0;
 static size_t                      __vala_rt_n_mappings = 0;
@@ -62,36 +69,66 @@ __vala_rt_add_handler (int signum)
   action.sa_sigaction = __vala_rt_handle_signal;
   sigaction (signum, &action, NULL);
 }
-static void
-write_frame (int frame)
+
+struct stack_frame
 {
-  char data[20] = { 0 };
-  int  n = snprintf (data, 20, "#%d", frame);
-  write (STDERR_FILENO, data, n);
-  for (int i = n; i < 5; i++)
-    write (STDERR_FILENO, " ", 1);
+  char       function_name[128];
+  char       library_name[255];
+  char       filename[255];
+  int        lineno;
+  unw_word_t ip;
+  int        skip : 2;
+};
+
+static struct stack_frame saved_stackframes[150];
+static int                n_saved_stackframes;
+
+static void
+print_initial_part (int curr, unw_word_t ip, int max)
+{
+  char data[128] = { 0 };
+  if (max > 100)
+    {
+      if (curr < 10)
+        {
+          sprintf (data, "#%d   ", curr);
+        }
+      else if (curr < 100)
+        {
+          sprintf (data, "#%d  ", curr);
+        }
+      else
+        {
+          sprintf (data, "#%d ", curr);
+        }
+    }
+  else if (max > 10)
+    {
+      if (curr < 10)
+        {
+          sprintf (data, "#%d  ", curr);
+        }
+      else
+        {
+          sprintf (data, "#%d ", curr);
+        }
+    }
+  else
+    {
+      sprintf (data, "#%d ", curr);
+    }
+  write (STDERR_FILENO, data, strlen (data));
+  memset (data, 0, sizeof (data));
+  sprintf (data, "<0x%016lx> ", (uint64_t)ip);
+  write (STDERR_FILENO, data, strlen (data));
 }
 
 static void
-write_good_backtrace (const char *modulename, const char *mangled, const char *filename, int line)
+pad_string (const char *s, size_t len)
 {
-  size_t len = strlen (mangled);
-  write (STDERR_FILENO, mangled, len);
-  for (size_t i = len; i <= 50; i++)
+  write (STDERR_FILENO, s, strlen (s));
+  for (size_t i = strlen (s); i <= len; i++)
     write (STDERR_FILENO, " ", 1);
-  write (STDERR_FILENO, " at ", 4);
-  len = strlen (filename);
-  size_t sum = len;
-  write (STDERR_FILENO, filename, len);
-  char data[20] = { 0 };
-  len = snprintf (data, 20, ":%d", line);
-  sum += len;
-  write (STDERR_FILENO, data, len);
-  for (size_t i = sum; i <= 50; i++)
-    write (STDERR_FILENO, " ", 1);
-  write (STDERR_FILENO, " in ", 4);
-  write (STDERR_FILENO, modulename, strlen (modulename));
-  write (STDERR_FILENO, "\n", 1);
 }
 
 static void
@@ -99,6 +136,8 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
 {
   if (__vala_rt_handler_triggered)
     return;
+  n_saved_stackframes = 0;
+  memset (saved_stackframes, 0, sizeof (saved_stackframes));
   psignal (signum, "Received signal");
   __vala_rt_handler_triggered = 1;
   unw_context_t uc = { 0 };
@@ -134,63 +173,239 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
       dwfl_report_end (dwfl, NULL, NULL);
       Dwarf_Addr   ipaddr = (uintptr_t)ip;
       Dwfl_Module *module = dwfl_addrmodule (dwfl, ipaddr);
-      const char  *function_name = dwfl_module_addrname (module, ipaddr);
-      const char  *real_name = __vala_rt_find_function (function_name, &cursor);
-      Dwfl_Line   *line = dwfl_getsrc (dwfl, ipaddr);
-      const char  *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-      write_frame (frame);
+      saved_stackframes[n_saved_stackframes].ip = ip;
+      saved_stackframes[n_saved_stackframes].skip = 0;
+      const char *function_name = dwfl_module_addrname (module, ipaddr);
+      const char *real_name = __vala_rt_find_function (function_name, &cursor);
+      strcpy (saved_stackframes[n_saved_stackframes].function_name, real_name);
+      if (!strlen (real_name))
+        saved_stackframes[n_saved_stackframes].function_name[0] = (char)1;
+      Dwfl_Line  *line = dwfl_getsrc (dwfl, ipaddr);
+      const char *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+      strcpy (saved_stackframes[n_saved_stackframes].library_name, module_name);
       if (line && real_name)
         {
           int         nline;
           Dwarf_Addr  addr;
           const char *filename = dwfl_lineinfo (line, &addr, &nline, NULL, NULL, NULL);
-          write_good_backtrace (module_name, real_name, filename, nline);
+          strcpy (saved_stackframes[n_saved_stackframes].filename, filename);
+          saved_stackframes[n_saved_stackframes].lineno = nline;
         }
       else
         {
-          char data[1024] = { 0 };
-          int  n = snprintf (data, 1024, "<%p> in %s\n", (void *)ip, module_name);
-          write (STDERR_FILENO, data, n);
+          saved_stackframes[n_saved_stackframes].filename[0] = (char)1;
+          saved_stackframes[n_saved_stackframes].lineno = -1;
         }
+      n_saved_stackframes++;
+      // TODO: Match _vala_main.constprop.0
       if (function_name && (!strcmp ("_vala_main", function_name) || !strcmp ("__libc_start_call_main", function_name)))
         break;
       dwfl_end (dwfl);
       frame++;
-      fsync (STDERR_FILENO);
     }
   dwfl_end (dwfl);
-  fsync (STDERR_FILENO);
+  // Search for call stacks like this:
+  // __lambda4_              | May be inlined
+  // ___lambda4_class_signal
+  // GLib::Closure.invoke
+  // signal_emit_unlocked_R
+  // g_signal_emit_valist
+  // GLib::Signal.emit
+  // And replace them by this:
+  // __lambda4_ or ___lambda4_class_signal
+  // <<signal Class::signal>>
+  for (int i = 0; i < n_saved_stackframes; i++)
+    {
+      if (!find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name))
+        continue;
+      if (strcmp (saved_stackframes[i].library_name, saved_stackframes[i + 1].library_name) == 0)
+        {
+          const char *s1 = find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name);
+          const char *s2 = find_signal (saved_stackframes[i + 1].library_name, saved_stackframes[i + 1].function_name);
+          // TODO: Can we compare addresses here?
+          if (s1 && s2 && !strcmp (s1, s2))
+            {
+              if (strcmp (saved_stackframes[i + 2].function_name, "GLib::Closure.invoke") == 0
+                  && strncmp (saved_stackframes[i + 3].function_name, "signal_emit_unlocked_R", 22) == 0)
+                {
+                  int n_to_skip = 2;
+                  if (i + 4 < n_saved_stackframes
+                      && strcmp (saved_stackframes[i + 4].function_name, "g_signal_emitv") == 0)
+                    {
+                      n_to_skip++;
+                    }
+                  else if (i + 4 < n_saved_stackframes
+                           && strcmp (saved_stackframes[i + 4].function_name, "g_signal_emit_valist") == 0)
+                    {
+                      n_to_skip++;
+                      if (i + 5 < n_saved_stackframes
+                          && strcmp (saved_stackframes[i + 5].function_name, "g_signal_emit") == 0)
+                        {
+                          n_to_skip++;
+                        }
+                      if (i + 5 < n_saved_stackframes
+                          && strcmp (saved_stackframes[i + 5].function_name, "g_signal_emit_by_name") == 0)
+                        {
+                          n_to_skip++;
+                        }
+                    }
+                  if (s1)
+                    {
+                      format_signal_name (saved_stackframes[i + 1].function_name, s1);
+                      for (int j = 1; j < n_to_skip + 2; j++)
+                        saved_stackframes[i + 1 + j].skip = 1;
+                      i += n_to_skip;
+                    }
+                }
+            }
+        }
+      else if (i + 2 < n_saved_stackframes)
+        {
+          if (strcmp (saved_stackframes[i + 1].function_name, "GLib::Closure.invoke") == 0
+              && strncmp (saved_stackframes[i + 2].function_name, "signal_emit_unlocked_R", 22) == 0)
+            {
+              int n_to_skip = 1;
+              if (i + 3 < n_saved_stackframes && strcmp (saved_stackframes[i + 3].function_name, "g_signal_emitv") == 0)
+                {
+                  n_to_skip++;
+                }
+              else if (i + 3 < n_saved_stackframes
+                       && strcmp (saved_stackframes[i + 3].function_name, "g_signal_emit_valist") == 0)
+                {
+                  n_to_skip++;
+                  if (i + 4 < n_saved_stackframes
+                      && strcmp (saved_stackframes[i + 4].function_name, "g_signal_emit") == 0)
+                    {
+                      n_to_skip++;
+                    }
+                  if (i + 4 < n_saved_stackframes
+                      && strcmp (saved_stackframes[i + 4].function_name, "g_signal_emit_by_name") == 0)
+                    {
+                      n_to_skip++;
+                    }
+                }
+              const char *s = find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name);
+              if (s)
+                {
+                  format_signal_name (saved_stackframes[i + 1].function_name, s);
+                  for (int j = 2; j < n_to_skip + 3; j++)
+                    saved_stackframes[i + j].skip = 1;
+                  i += n_to_skip;
+                }
+            }
+        }
+    }
+  size_t n_traces = 0;
+  size_t max_fname = 0;
+  size_t max_filename = 0;
+  size_t max_lname = 0;
+  for (int i = 0; i < n_saved_stackframes; i++)
+    {
+      if (!saved_stackframes[i].skip)
+        {
+          n_traces++;
+          max_fname = MAX (max_fname, strlen (saved_stackframes[i].function_name));
+          max_lname = MAX (max_lname, strlen (saved_stackframes[i].library_name));
+          max_filename = MAX (max_filename, strlen (saved_stackframes[i].filename));
+        }
+    }
+  int cnter = 0;
+  for (int i = 0; i < n_saved_stackframes; i++)
+    {
+      if (!saved_stackframes[i].skip)
+        {
+          print_initial_part (cnter, saved_stackframes[i].ip, n_traces);
+          pad_string (saved_stackframes[i].library_name, max_lname);
+          if (saved_stackframes[i].function_name[0] == 1)
+            goto eol;
+          pad_string (saved_stackframes[i].function_name, max_fname);
+          if (saved_stackframes[i].filename[0] == 1)
+            goto eol;
+          write (STDERR_FILENO, saved_stackframes[i].filename, strlen (saved_stackframes[i].filename));
+          if (saved_stackframes[i].lineno == -1)
+            goto eol;
+          write (STDERR_FILENO, ":", 1);
+          char data[10] = { 0 };
+          sprintf (data, "%d", saved_stackframes[i].lineno);
+          write (STDERR_FILENO, data, strlen (data));
+        eol:
+          write (STDERR_FILENO, "\n", 1);
+          cnter++;
+        }
+    }
   abort ();
 }
 
 static const char *
-__vala_rt_find_function (const char *function, unw_cursor_t *cursor)
+__vala_rt_find_function (const char *function, __attribute__ ((unused)) unw_cursor_t *cursor)
 {
-  void *name = dlsym (RTLD_NEXT, "g_signal_name");
-  if (!name)
-    return function;
-  const char *(*signal_name) (unsigned int) = name;
-  if ((strcmp ("g_signal_emit", function) == 0 || strcmp ("signal_emit_unlocked_R.isra.0", function) == 0) && name)
+  if (strncmp (function, "_vala_main.constprop.", strlen ("_vala_main.constprop.")) == 0)
     {
-      uint64_t signal_id = 0;
-      int      n = unw_get_reg (cursor, UNW_X86_64_RSI, &signal_id);
-      if (n != UNW_ESUCCESS)
-        {
-          printf ("Error: %s\n", unw_strerror (n));
-          goto end;
-        }
-      printf ("0x%lx\n", signal_id);
-      printf ("0x%x\n", (uint32_t)(signal_id & 0xFFFFFFFF));
-      printf ("0x%x\n", (uint32_t)(signal_id >> 32) & 0xFFFFFFFF);
-      printf ("0x%x\n", __bswap_constant_32 ((uint32_t)(signal_id & 0xFFFFFFFF)));
-      printf ("0x%x\n", __bswap_constant_32 ((uint32_t)(signal_id >> 32) & 0xFFFFFFFF));
-
-      // printf ("%s\n", signal_name (__bswap_constant_32 ((signal_id >> 32) & 0xFFFFFFFF)));
+      return "main";
     }
-end:;
   const char *r = __vala_rt_find_function_internal (function);
   if (r)
     return r;
   // https://github.com/GNOME/glib/blob/ff8b43a15498aeafe392acd97d1ff1107252227e/gobject/gobject_gdb.py
   return function;
+}
+
+struct mapping_holder
+{
+  char                              *library_path;
+  size_t                             n_mappings;
+  const struct vala_signal_mappings *mappings;
+};
+
+struct mapping_holder __vala_rt_signal_mappings[150];
+size_t                __vala_rt_n_signal_mappings = 0;
+
+static const char *
+find_signal (const char *library, const char *function_name)
+{
+  char real_path_tmp[PATH_MAX + 1] = { 0 };
+  for (size_t i = 0; i < __vala_rt_n_signal_mappings; i++)
+    {
+      realpath (library, real_path_tmp);
+      if (!strcmp (__vala_rt_signal_mappings[i].library_path, library)
+          || !strcmp (__vala_rt_signal_mappings[i].library_path, real_path_tmp))
+        {
+          for (size_t j = 0; j < __vala_rt_signal_mappings[i].n_mappings; j++)
+            {
+              if (!strcmp (__vala_rt_signal_mappings[i].mappings[j].c_function_name, function_name))
+                {
+                  return __vala_rt_signal_mappings[i].mappings[j].demangled_signal_name;
+                }
+            }
+        }
+    }
+  return NULL;
+}
+
+extern void
+__vala_register_signal_mappings (const char                        *library_path,
+                                 const struct vala_signal_mappings *mappings,
+                                 size_t                             n_mappings)
+{
+  if (__vala_rt_n_signal_mappings == 150)
+    {
+      fprintf (stderr, "Unable to register vala signal mappings for %s\n", library_path);
+      return;
+    }
+
+  fprintf (stderr, "Registering signal mappings for %s\n", library_path);
+  __vala_rt_signal_mappings[__vala_rt_n_signal_mappings].library_path = strdup (library_path);
+  __vala_rt_signal_mappings[__vala_rt_n_signal_mappings].n_mappings = n_mappings;
+  __vala_rt_signal_mappings[__vala_rt_n_signal_mappings].mappings = mappings;
+  __vala_rt_n_signal_mappings++;
+  printf (
+      "%zx %zx\n", __vala_rt_n_signal_mappings, __vala_rt_signal_mappings[__vala_rt_n_signal_mappings - 1].n_mappings);
+}
+static void
+format_signal_name (char *into, const char *demangled)
+{
+  memset (into, 0, strlen (into));
+  strcat (into, "<<signal ");
+  strcat (into, demangled);
+  strcat (into, ">>");
 }

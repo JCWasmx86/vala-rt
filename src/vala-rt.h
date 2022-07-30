@@ -30,8 +30,18 @@ struct vala_mappings
   const char *demangled;
 };
 
+struct vala_signal_mappings
+{
+  const char c_function_name[255];
+  const char demangled_signal_name[255];
+};
+
 extern const char  *__vala_debug_prefix;
 extern const char **__vala_extra_debug_files;
 
 extern void
 __vala_init_handlers (char **argv, const struct vala_mappings *mappings, size_t n_mappings);
+extern void
+__vala_register_signal_mappings (const char                        *library_path,
+                                 const struct vala_signal_mappings *mappings,
+                                 size_t                             n_mappings);
