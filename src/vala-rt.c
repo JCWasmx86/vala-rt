@@ -177,9 +177,14 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
       saved_stackframes[n_saved_stackframes].skip = 0;
       const char *function_name = dwfl_module_addrname (module, ipaddr);
       const char *real_name = __vala_rt_find_function (function_name, &cursor);
-      strcpy (saved_stackframes[n_saved_stackframes].function_name, real_name);
-      if (!strlen (real_name))
-        saved_stackframes[n_saved_stackframes].function_name[0] = (char)1;
+      if (real_name)
+        {
+          strcpy (saved_stackframes[n_saved_stackframes].function_name, real_name);
+        }
+      else
+        {
+          saved_stackframes[n_saved_stackframes].function_name[0] = 1;
+        }
       Dwfl_Line  *line = dwfl_getsrc (dwfl, ipaddr);
       const char *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
       strcpy (saved_stackframes[n_saved_stackframes].library_name, module_name);
@@ -217,6 +222,8 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
   for (int i = 0; i < n_saved_stackframes; i++)
     {
       if (!find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name))
+        continue;
+      if (saved_stackframes[i].function_name[0] == 1)
         continue;
       if (strcmp (saved_stackframes[i].library_name, saved_stackframes[i + 1].library_name) == 0)
         {
@@ -339,6 +346,9 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
 static const char *
 __vala_rt_find_function (const char *function, __attribute__ ((unused)) unw_cursor_t *cursor)
 {
+  if (function == NULL)
+    return NULL;
+
   if (strncmp (function, "_vala_main.constprop.", strlen ("_vala_main.constprop.")) == 0)
     {
       return "main";
