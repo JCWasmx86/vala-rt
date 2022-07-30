@@ -12,13 +12,15 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install dependencies
-      run: sudo apt install -y libelf-dev gcc libdwarf-dev libunwind-dev ninja-build python3 python3-pip python3-setuptools python3-wheel ninja-build elfutils libdw-dev
+      run: sudo apt install -y clang-tools clang libelf-dev gcc libdwarf-dev libunwind-dev ninja-build python3 python3-pip python3-setuptools python3-wheel ninja-build elfutils libdw-dev
     - name: Install meson
       run: pip3 install meson
     - name: Configure
       run: meson _build
     - name: Compile
       run: ninja -C _build -j $(nproc)
+    - name: scan-build
+      run: ninja -C _build scan-build
 
   clang-format-checking:
     runs-on: ubuntu-latest
