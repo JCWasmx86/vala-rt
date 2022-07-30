@@ -392,14 +392,10 @@ __vala_register_signal_mappings (const char                        *library_path
       fprintf (stderr, "Unable to register vala signal mappings for %s\n", library_path);
       return;
     }
-
-  fprintf (stderr, "Registering signal mappings for %s\n", library_path);
   __vala_rt_signal_mappings[__vala_rt_n_signal_mappings].library_path = strdup (library_path);
   __vala_rt_signal_mappings[__vala_rt_n_signal_mappings].n_mappings = n_mappings;
   __vala_rt_signal_mappings[__vala_rt_n_signal_mappings].mappings = mappings;
   __vala_rt_n_signal_mappings++;
-  printf (
-      "%zx %zx\n", __vala_rt_n_signal_mappings, __vala_rt_signal_mappings[__vala_rt_n_signal_mappings - 1].n_mappings);
 }
 static void
 format_signal_name (char *into, const char *demangled)
