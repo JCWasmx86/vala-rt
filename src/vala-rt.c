@@ -43,6 +43,27 @@ __vala_rt_find_signal (const char *library, const char *function_name);
 static void
 __vala_rt_format_signal_name (char *into, const char *demangled);
 
+struct mapping_holder
+{
+  char                              *library_path;
+  size_t                             n_mappings;
+  const struct vala_signal_mappings *mappings;
+};
+
+struct stack_frame
+{
+  char       function_name[128];
+  char       library_name[255];
+  char       filename[255];
+  int        lineno;
+  unw_word_t ip;
+  int        skip : 2;
+};
+
+struct mapping_holder              __vala_rt_signal_mappings[150];
+size_t                             __vala_rt_n_signal_mappings = 0;
+static struct stack_frame          saved_stackframes[150];
+static int                         n_saved_stackframes;
 static int                         __vala_rt_handler_triggered = 0;
 static size_t                      __vala_rt_n_mappings = 0;
 static const struct vala_mappings *__vala_rt_mappings = NULL;
@@ -69,19 +90,6 @@ __vala_rt_add_handler (int signum)
   action.sa_sigaction = __vala_rt_handle_signal;
   sigaction (signum, &action, NULL);
 }
-
-struct stack_frame
-{
-  char       function_name[128];
-  char       library_name[255];
-  char       filename[255];
-  int        lineno;
-  unw_word_t ip;
-  int        skip : 2;
-};
-
-static struct stack_frame saved_stackframes[150];
-static int                n_saved_stackframes;
 
 static void
 print_initial_part (int curr, unw_word_t ip, int max)
@@ -394,16 +402,6 @@ __vala_rt_find_function (const char *function, __attribute__ ((unused)) unw_curs
   return function;
 }
 
-struct mapping_holder
-{
-  char                              *library_path;
-  size_t                             n_mappings;
-  const struct vala_signal_mappings *mappings;
-};
-
-struct mapping_holder __vala_rt_signal_mappings[150];
-size_t                __vala_rt_n_signal_mappings = 0;
-
 static const char *
 __vala_rt_find_signal (const char *library, const char *function_name)
 {
@@ -426,7 +424,7 @@ __vala_rt_find_signal (const char *library, const char *function_name)
   return NULL;
 }
 
-extern void
+void
 __vala_register_signal_mappings (const char                        *library_path,
                                  const struct vala_signal_mappings *mappings,
                                  size_t                             n_mappings)
@@ -441,6 +439,7 @@ __vala_register_signal_mappings (const char                        *library_path
   __vala_rt_signal_mappings[__vala_rt_n_signal_mappings].mappings = mappings;
   __vala_rt_n_signal_mappings++;
 }
+
 static void
 __vala_rt_format_signal_name (char *into, const char *demangled)
 {
