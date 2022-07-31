@@ -29,6 +29,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#define MAX_SIGNAL_MAPPINGS 150
+#define MAX_BACKTRACE_DEPTH 150
 #define MAX(a, b) (a > b ? a : b)
 
 static void
@@ -60,9 +62,9 @@ struct stack_frame
   int        skip : 2;
 };
 
-struct mapping_holder              __vala_rt_signal_mappings[150];
+struct mapping_holder              __vala_rt_signal_mappings[MAX_SIGNAL_MAPPINGS];
 size_t                             __vala_rt_n_signal_mappings = 0;
-static struct stack_frame          saved_stackframes[150];
+static struct stack_frame          saved_stackframes[MAX_BACKTRACE_DEPTH];
 static int                         n_saved_stackframes;
 static int                         __vala_rt_handler_triggered = 0;
 static size_t                      __vala_rt_n_mappings = 0;
@@ -161,7 +163,7 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
   // This uses so much malloc, but what can
   // it do at this point?
   int frame = 0;
-  while (unw_step (&cursor) > 0)
+  while (unw_step (&cursor) > 0 && n_saved_stackframes < MAX_BACKTRACE_DEPTH)
     {
       unw_word_t ip;
       unw_get_reg (&cursor, UNW_REG_IP, &ip);
@@ -429,7 +431,7 @@ __vala_register_signal_mappings (const char                        *library_path
                                  const struct vala_signal_mappings *mappings,
                                  size_t                             n_mappings)
 {
-  if (__vala_rt_n_signal_mappings == 150)
+  if (__vala_rt_n_signal_mappings == MAX_SIGNAL_MAPPINGS)
     {
       fprintf (stderr, "Unable to register vala signal mappings for %s\n", library_path);
       return;
