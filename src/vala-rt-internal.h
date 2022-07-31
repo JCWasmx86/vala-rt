@@ -1,3 +1,8 @@
+#include <stddef.h>
 #pragma once
 const char *
-__vala_rt_find_function_internal (const char *);
+__vala_rt_find_function_internal_direct (const char *);
+const char *
+__vala_rt_find_function_internal_file (const char *);
+const char *
+__vala_rt_find_function_internal_section (const char *, const void *, size_t);

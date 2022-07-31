@@ -7,7 +7,7 @@
 static struct vala_mappings *__vala_rt__bdirect_mappings = NULL;
 
 const char *
-__vala_rt_find_function_internal (const char *str)
+__vala_rt_find_function_internal_direct (const char *str)
 {
   if (!__vala_rt__bdirect_mappings)
     {

@@ -37,11 +37,11 @@ __vala_rt_handle_signal (int signo, siginfo_t *info, void *_ctx);
 static void
 __vala_rt_add_handler (int signum);
 static const char *
-__vala_rt_find_function (const char *function, unw_cursor_t *cursor);
+__vala_rt_find_function (const char *function, unw_cursor_t *cursor, void *section, size_t section_len);
 static const char *
-find_signal (const char *library, const char *function_name);
+__vala_rt_find_signal (const char *library, const char *function_name);
 static void
-format_signal_name (char *into, const char *demangled);
+__vala_rt_format_signal_name (char *into, const char *demangled);
 
 static int                         __vala_rt_handler_triggered = 0;
 static size_t                      __vala_rt_n_mappings = 0;
@@ -173,10 +173,32 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
       dwfl_report_end (dwfl, NULL, NULL);
       Dwarf_Addr   ipaddr = (uintptr_t)ip;
       Dwfl_Module *module = dwfl_addrmodule (dwfl, ipaddr);
+      GElf_Addr    gaddr = 0;
+      Elf         *elf = dwfl_module_getelf (module, &gaddr);
+      size_t       num_sections = 0;
+      elf_getshdrnum (elf, &num_sections);
+      size_t shstrndx;
+      elf_getshdrstrndx (elf, &shstrndx);
+      void  *section_data = NULL;
+      size_t section_size = 0;
+      for (size_t i = 0; i < num_sections; i++)
+        {
+          Elf_Scn  *scn = elf_getscn (elf, i);
+          GElf_Shdr shdr;
+          gelf_getshdr (scn, &shdr);
+          const char *name = elf_strptr (elf, shstrndx, shdr.sh_name);
+          if (!strcmp (".debug_info", name))
+            {
+              Elf_Data *data = NULL;
+              data = elf_rawdata (scn, data);
+              section_data = data->d_buf;
+              section_size = data->d_size;
+            }
+        }
       saved_stackframes[n_saved_stackframes].ip = ip;
       saved_stackframes[n_saved_stackframes].skip = 0;
       const char *function_name = dwfl_module_addrname (module, ipaddr);
-      const char *real_name = __vala_rt_find_function (function_name, &cursor);
+      const char *real_name = __vala_rt_find_function (function_name, &cursor, section_data, section_size);
       if (real_name)
         {
           strcpy (saved_stackframes[n_saved_stackframes].function_name, real_name);
@@ -221,14 +243,16 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
   // <<signal Class::signal>>
   for (int i = 0; i < n_saved_stackframes; i++)
     {
-      if (!find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name))
+      if (!__vala_rt_find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name))
         continue;
       if (saved_stackframes[i].function_name[0] == 1)
         continue;
       if (strcmp (saved_stackframes[i].library_name, saved_stackframes[i + 1].library_name) == 0)
         {
-          const char *s1 = find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name);
-          const char *s2 = find_signal (saved_stackframes[i + 1].library_name, saved_stackframes[i + 1].function_name);
+          const char *s1
+              = __vala_rt_find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name);
+          const char *s2
+              = __vala_rt_find_signal (saved_stackframes[i + 1].library_name, saved_stackframes[i + 1].function_name);
           // TODO: Can we compare addresses here?
           if (s1 && s2 && !strcmp (s1, s2))
             {
@@ -258,7 +282,7 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                     }
                   if (s1)
                     {
-                      format_signal_name (saved_stackframes[i + 1].function_name, s1);
+                      __vala_rt_format_signal_name (saved_stackframes[i + 1].function_name, s1);
                       for (int j = 1; j < n_to_skip + 2; j++)
                         saved_stackframes[i + 1 + j].skip = 1;
                       i += n_to_skip;
@@ -291,10 +315,11 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                       n_to_skip++;
                     }
                 }
-              const char *s = find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name);
+              const char *s
+                  = __vala_rt_find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name);
               if (s)
                 {
-                  format_signal_name (saved_stackframes[i + 1].function_name, s);
+                  __vala_rt_format_signal_name (saved_stackframes[i + 1].function_name, s);
                   for (int j = 2; j < n_to_skip + 3; j++)
                     saved_stackframes[i + j].skip = 1;
                   i += n_to_skip;
@@ -344,7 +369,7 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
 }
 
 static const char *
-__vala_rt_find_function (const char *function, __attribute__ ((unused)) unw_cursor_t *cursor)
+__vala_rt_find_function (const char *function, __attribute__ ((unused)) unw_cursor_t *cursor, void *data, size_t len)
 {
   if (function == NULL)
     return NULL;
@@ -353,9 +378,18 @@ __vala_rt_find_function (const char *function, __attribute__ ((unused)) unw_curs
     {
       return "main";
     }
-  const char *r = __vala_rt_find_function_internal (function);
+  const char *r = __vala_rt_find_function_internal_direct (function);
   if (r)
     return r;
+  r = __vala_rt_find_function_internal_file (function);
+  if (r)
+    return r;
+  if (data && len)
+    {
+      const char *r1 = __vala_rt_find_function_internal_section (function, data, len);
+      if (r1)
+        return r1;
+    }
   // https://github.com/GNOME/glib/blob/ff8b43a15498aeafe392acd97d1ff1107252227e/gobject/gobject_gdb.py
   return function;
 }
@@ -371,7 +405,7 @@ struct mapping_holder __vala_rt_signal_mappings[150];
 size_t                __vala_rt_n_signal_mappings = 0;
 
 static const char *
-find_signal (const char *library, const char *function_name)
+__vala_rt_find_signal (const char *library, const char *function_name)
 {
   char real_path_tmp[PATH_MAX + 1] = { 0 };
   for (size_t i = 0; i < __vala_rt_n_signal_mappings; i++)
@@ -408,7 +442,7 @@ __vala_register_signal_mappings (const char                        *library_path
   __vala_rt_n_signal_mappings++;
 }
 static void
-format_signal_name (char *into, const char *demangled)
+__vala_rt_format_signal_name (char *into, const char *demangled)
 {
   memset (into, 0, strlen (into));
   strcat (into, "<<signal ");
