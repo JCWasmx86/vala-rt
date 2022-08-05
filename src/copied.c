@@ -110,6 +110,7 @@ __vala_rt_find_debuglink (Dwfl_Module *module, Elf *elf)
   return fd;
 }
 
+// This function was written by me
 int
 __vala_rt_find_debug_altlink (Dwarf *dbg)
 {
