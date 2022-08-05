@@ -40,8 +40,8 @@ extern const char  *__vala_debug_prefix;
 extern const char **__vala_extra_debug_files;
 
 extern void
-__vala_init_handlers (char **argv, const struct vala_mappings *mappings, size_t n_mappings);
-extern void
+__vala_init (void);
+__attribute__ ((__visibility__ ("default"))) extern void
 __vala_register_signal_mappings (const char                        *library_path,
                                  const struct vala_signal_mappings *mappings,
                                  size_t                             n_mappings);

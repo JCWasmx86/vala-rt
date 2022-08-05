@@ -1,6 +1,6 @@
+#define _GNU_SOURCE
 #include "vala-rt-internal.h"
 #include "vala-rt.h"
-#define _GNU_SOURCE
 #include <dlfcn.h>
 #include <string.h>
 
@@ -13,7 +13,7 @@ __vala_rt_find_function_internal_direct (const char *str)
     {
       __vala_rt__bdirect_mappings = dlsym (RTLD_DEFAULT, "__vala_mappings");
       if (!__vala_rt__bdirect_mappings)
-        return str;
+        return NULL;
     }
   for (size_t i = 0; __vala_rt__bdirect_mappings[i].function_name != NULL; i++)
     {

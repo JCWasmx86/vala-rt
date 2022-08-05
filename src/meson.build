@@ -5,6 +5,7 @@ vala_rt_sources = [
   'backend_direct.c',
   'backend_separate.c',
   'backend_section.c',
+  'copied.c'
 ]
 
 vala_rt_headers = [
