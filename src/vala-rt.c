@@ -456,7 +456,6 @@ __vala_rt_find_function (const char                            *function,
       if (r1)
         return r1;
     }
-  // https://github.com/GNOME/glib/blob/ff8b43a15498aeafe392acd97d1ff1107252227e/gobject/gobject_gdb.py
   return function;
 }
 
