@@ -65,8 +65,8 @@ struct stack_frame
 
 struct mapping_holder     __vala_rt_signal_mappings[MAX_SIGNAL_MAPPINGS];
 size_t                    __vala_rt_n_signal_mappings = 0;
-static struct stack_frame saved_stackframes[MAX_BACKTRACE_DEPTH];
-static int                n_saved_stackframes;
+static struct stack_frame __vala_rt_saved_stackframes[MAX_BACKTRACE_DEPTH];
+static int                __vala_rt_n_saved_stackframes;
 static int                __vala_rt_handler_triggered = 0;
 static int                __vala_rt_already_initialized = 0;
 
@@ -147,8 +147,8 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
 {
   if (__vala_rt_handler_triggered)
     return;
-  n_saved_stackframes = 0;
-  memset (saved_stackframes, 0, sizeof (saved_stackframes));
+  __vala_rt_n_saved_stackframes = 0;
+  memset (__vala_rt_saved_stackframes, 0, sizeof (__vala_rt_saved_stackframes));
   psignal (signum, "Received signal");
   __vala_rt_handler_triggered = 1;
   unw_context_t uc = { 0 };
@@ -164,7 +164,7 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
   // This uses so much malloc, but what can
   // it do at this point?
   int frame = 0;
-  while (unw_step (&cursor) > 0 && n_saved_stackframes < MAX_BACKTRACE_DEPTH)
+  while (unw_step (&cursor) > 0 && __vala_rt_n_saved_stackframes < MAX_BACKTRACE_DEPTH)
     {
       unw_word_t ip;
       unw_get_reg (&cursor, UNW_REG_IP, &ip);
@@ -254,35 +254,35 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                 }
             }
         }
-      saved_stackframes[n_saved_stackframes].ip = ip;
-      saved_stackframes[n_saved_stackframes].skip = 0;
+      __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].ip = ip;
+      __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].skip = 0;
       const char *function_name = dwfl_module_addrname (module, ipaddr);
       const char *real_name = __vala_rt_find_function (function_name, &cursor, section_data, section_size, compressed);
       if (real_name)
         {
-          strcpy (saved_stackframes[n_saved_stackframes].function_name, real_name);
+          strcpy (__vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].function_name, real_name);
         }
       else
         {
-          saved_stackframes[n_saved_stackframes].function_name[0] = 1;
+          __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].function_name[0] = 1;
         }
       Dwfl_Line  *line = dwfl_getsrc (dwfl, ipaddr);
       const char *module_name = dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
-      strcpy (saved_stackframes[n_saved_stackframes].library_name, module_name);
+      strcpy (__vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].library_name, module_name);
       if (line && real_name)
         {
           int         nline;
           Dwarf_Addr  addr;
           const char *filename = dwfl_lineinfo (line, &addr, &nline, NULL, NULL, NULL);
-          strcpy (saved_stackframes[n_saved_stackframes].filename, filename);
-          saved_stackframes[n_saved_stackframes].lineno = nline;
+          strcpy (__vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].filename, filename);
+          __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].lineno = nline;
         }
       else
         {
-          saved_stackframes[n_saved_stackframes].filename[0] = (char)1;
-          saved_stackframes[n_saved_stackframes].lineno = -1;
+          __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].filename[0] = (char)1;
+          __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].lineno = -1;
         }
-      n_saved_stackframes++;
+      __vala_rt_n_saved_stackframes++;
       if (second_elf)
         elf_end (second_elf);
       // TODO: Match _vala_main.constprop.0
@@ -302,89 +302,91 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
   // And replace them by this:
   // __lambda4_ or ___lambda4_class_signal
   // <<signal Class::signal>>
-  for (int i = 0; i < n_saved_stackframes; i++)
+  for (int i = 0; i < __vala_rt_n_saved_stackframes; i++)
     {
-      if (!__vala_rt_find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name))
+      if (!__vala_rt_find_signal (__vala_rt_saved_stackframes[i].library_name,
+                                  __vala_rt_saved_stackframes[i].function_name))
         continue;
-      if (saved_stackframes[i].function_name[0] == 1)
+      if (__vala_rt_saved_stackframes[i].function_name[0] == 1)
         continue;
-      if (strcmp (saved_stackframes[i].library_name, saved_stackframes[i + 1].library_name) == 0)
+      if (strcmp (__vala_rt_saved_stackframes[i].library_name, __vala_rt_saved_stackframes[i + 1].library_name) == 0)
         {
-          const char *s1
-              = __vala_rt_find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name);
-          const char *s2
-              = __vala_rt_find_signal (saved_stackframes[i + 1].library_name, saved_stackframes[i + 1].function_name);
+          const char *s1 = __vala_rt_find_signal (__vala_rt_saved_stackframes[i].library_name,
+                                                  __vala_rt_saved_stackframes[i].function_name);
+          const char *s2 = __vala_rt_find_signal (__vala_rt_saved_stackframes[i + 1].library_name,
+                                                  __vala_rt_saved_stackframes[i + 1].function_name);
           // TODO: Can we compare addresses here?
           if (s1 && s2 && !strcmp (s1, s2))
             {
-              if ((strcmp (saved_stackframes[i + 2].function_name, "GLib::Closure.invoke") == 0
-                   || strcmp (saved_stackframes[i + 2].function_name, "g_closure_invoke") == 0)
-                  && strncmp (saved_stackframes[i + 3].function_name, "signal_emit_unlocked_R", 22) == 0)
+              if ((strcmp (__vala_rt_saved_stackframes[i + 2].function_name, "GLib::Closure.invoke") == 0
+                   || strcmp (__vala_rt_saved_stackframes[i + 2].function_name, "g_closure_invoke") == 0)
+                  && strncmp (__vala_rt_saved_stackframes[i + 3].function_name, "signal_emit_unlocked_R", 22) == 0)
                 {
                   int n_to_skip = 2;
-                  if (i + 4 < n_saved_stackframes
-                      && strcmp (saved_stackframes[i + 4].function_name, "g_signal_emitv") == 0)
+                  if (i + 4 < __vala_rt_n_saved_stackframes
+                      && strcmp (__vala_rt_saved_stackframes[i + 4].function_name, "g_signal_emitv") == 0)
                     {
                       n_to_skip++;
                     }
-                  else if (i + 4 < n_saved_stackframes
-                           && strcmp (saved_stackframes[i + 4].function_name, "g_signal_emit_valist") == 0)
+                  else if (i + 4 < __vala_rt_n_saved_stackframes
+                           && strcmp (__vala_rt_saved_stackframes[i + 4].function_name, "g_signal_emit_valist") == 0)
                     {
                       n_to_skip++;
-                      if (i + 5 < n_saved_stackframes
-                          && strcmp (saved_stackframes[i + 5].function_name, "g_signal_emit") == 0)
+                      if (i + 5 < __vala_rt_n_saved_stackframes
+                          && strcmp (__vala_rt_saved_stackframes[i + 5].function_name, "g_signal_emit") == 0)
                         {
                           n_to_skip++;
                         }
-                      if (i + 5 < n_saved_stackframes
-                          && strcmp (saved_stackframes[i + 5].function_name, "g_signal_emit_by_name") == 0)
+                      if (i + 5 < __vala_rt_n_saved_stackframes
+                          && strcmp (__vala_rt_saved_stackframes[i + 5].function_name, "g_signal_emit_by_name") == 0)
                         {
                           n_to_skip++;
                         }
                     }
                   if (s1)
                     {
-                      __vala_rt_format_signal_name (saved_stackframes[i + 1].function_name, s1);
+                      __vala_rt_format_signal_name (__vala_rt_saved_stackframes[i + 1].function_name, s1);
                       for (int j = 1; j < n_to_skip + 1; j++)
-                        saved_stackframes[i + 1 + j].skip = 1;
+                        __vala_rt_saved_stackframes[i + 1 + j].skip = 1;
                       i += n_to_skip;
                     }
                 }
             }
         }
-      else if (i + 2 < n_saved_stackframes)
+      else if (i + 2 < __vala_rt_n_saved_stackframes)
         {
-          if ((strcmp (saved_stackframes[i + 1].function_name, "GLib::Closure.invoke") == 0
-               || strcmp (saved_stackframes[i + 1].function_name, "g_closure_invoke") == 0)
-              && strncmp (saved_stackframes[i + 2].function_name, "signal_emit_unlocked_R", 22) == 0)
+          if ((strcmp (__vala_rt_saved_stackframes[i + 1].function_name, "GLib::Closure.invoke") == 0
+               || strcmp (__vala_rt_saved_stackframes[i + 1].function_name, "g_closure_invoke") == 0)
+              && strncmp (__vala_rt_saved_stackframes[i + 2].function_name, "signal_emit_unlocked_R", 22) == 0)
             {
               int n_to_skip = 1;
-              if (i + 3 < n_saved_stackframes && strcmp (saved_stackframes[i + 3].function_name, "g_signal_emitv") == 0)
+              if (i + 3 < __vala_rt_n_saved_stackframes
+                  && strcmp (__vala_rt_saved_stackframes[i + 3].function_name, "g_signal_emitv") == 0)
                 {
                   n_to_skip++;
                 }
-              else if (i + 3 < n_saved_stackframes
-                       && strcmp (saved_stackframes[i + 3].function_name, "g_signal_emit_valist") == 0)
+              else if (i + 3 < __vala_rt_n_saved_stackframes
+                       && strcmp (__vala_rt_saved_stackframes[i + 3].function_name, "g_signal_emit_valist") == 0)
                 {
                   n_to_skip++;
-                  if (i + 4 < n_saved_stackframes
-                      && strcmp (saved_stackframes[i + 4].function_name, "g_signal_emit") == 0)
+                  if (i + 4 < __vala_rt_n_saved_stackframes
+                      && strcmp (__vala_rt_saved_stackframes[i + 4].function_name, "g_signal_emit") == 0)
                     {
                       n_to_skip++;
                     }
-                  if (i + 4 < n_saved_stackframes
-                      && strcmp (saved_stackframes[i + 4].function_name, "g_signal_emit_by_name") == 0)
+                  if (i + 4 < __vala_rt_n_saved_stackframes
+                      && strcmp (__vala_rt_saved_stackframes[i + 4].function_name, "g_signal_emit_by_name") == 0)
                     {
                       n_to_skip++;
                     }
                 }
-              const char *s
-                  = __vala_rt_find_signal (saved_stackframes[i].library_name, saved_stackframes[i].function_name);
+              const char *s = __vala_rt_find_signal (__vala_rt_saved_stackframes[i].library_name,
+                                                     __vala_rt_saved_stackframes[i].function_name);
               if (s)
                 {
-                  __vala_rt_format_signal_name (saved_stackframes[i + 1].function_name, s);
+                  __vala_rt_format_signal_name (__vala_rt_saved_stackframes[i + 1].function_name, s);
                   for (int j = 2; j < n_to_skip + 2; j++)
-                    saved_stackframes[i + j].skip = 1;
+                    __vala_rt_saved_stackframes[i + j].skip = 1;
                   i += n_to_skip;
                 }
             }
@@ -394,34 +396,35 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
   size_t max_fname = 0;
   size_t max_filename = 0;
   size_t max_lname = 0;
-  for (int i = 0; i < n_saved_stackframes; i++)
+  for (int i = 0; i < __vala_rt_n_saved_stackframes; i++)
     {
-      if (!saved_stackframes[i].skip)
+      if (!__vala_rt_saved_stackframes[i].skip)
         {
           n_traces++;
-          max_fname = MAX (max_fname, strlen (saved_stackframes[i].function_name));
-          max_lname = MAX (max_lname, strlen (saved_stackframes[i].library_name));
-          max_filename = MAX (max_filename, strlen (saved_stackframes[i].filename));
+          max_fname = MAX (max_fname, strlen (__vala_rt_saved_stackframes[i].function_name));
+          max_lname = MAX (max_lname, strlen (__vala_rt_saved_stackframes[i].library_name));
+          max_filename = MAX (max_filename, strlen (__vala_rt_saved_stackframes[i].filename));
         }
     }
   int cnter = 0;
-  for (int i = 0; i < n_saved_stackframes; i++)
+  for (int i = 0; i < __vala_rt_n_saved_stackframes; i++)
     {
-      if (!saved_stackframes[i].skip)
+      if (!__vala_rt_saved_stackframes[i].skip)
         {
-          print_initial_part (cnter, saved_stackframes[i].ip, n_traces);
-          pad_string (saved_stackframes[i].library_name, max_lname);
-          if (saved_stackframes[i].function_name[0] == 1)
+          print_initial_part (cnter, __vala_rt_saved_stackframes[i].ip, n_traces);
+          pad_string (__vala_rt_saved_stackframes[i].library_name, max_lname);
+          if (__vala_rt_saved_stackframes[i].function_name[0] == 1)
             goto eol;
-          pad_string (saved_stackframes[i].function_name, max_fname);
-          if (saved_stackframes[i].filename[0] == 1)
+          pad_string (__vala_rt_saved_stackframes[i].function_name, max_fname);
+          if (__vala_rt_saved_stackframes[i].filename[0] == 1)
             goto eol;
-          write (STDERR_FILENO, saved_stackframes[i].filename, strlen (saved_stackframes[i].filename));
-          if (saved_stackframes[i].lineno == -1)
+          write (
+              STDERR_FILENO, __vala_rt_saved_stackframes[i].filename, strlen (__vala_rt_saved_stackframes[i].filename));
+          if (__vala_rt_saved_stackframes[i].lineno == -1)
             goto eol;
           write (STDERR_FILENO, ":", 1);
           char data[10] = { 0 };
-          sprintf (data, "%d", saved_stackframes[i].lineno);
+          sprintf (data, "%d", __vala_rt_saved_stackframes[i].lineno);
           write (STDERR_FILENO, data, strlen (data));
         eol:
           write (STDERR_FILENO, "\n", 1);
