@@ -37,7 +37,7 @@ struct vala_signal_mappings
 };
 
 extern const char  *__vala_debug_prefix;
-extern const char **__vala_extra_debug_files;
+extern const char **__vala_extra_debug_directories;
 
 extern void
 __vala_init (void);

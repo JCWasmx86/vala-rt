@@ -11,6 +11,7 @@
 #include <unistd.h>
 #define BUF_SIZE 1024
 #define VALA_DEBUG_PATH "/share/vala/debug/"
+#define LOCAL_VALA_DEBUG_PATH "/local/share/vala/debug/"
 
 struct linux_dirent
 {
@@ -29,6 +30,9 @@ const char *
 __vala_rt_load_from_file (const char *file, const char *function);
 
 const char *
+__vala_rt_scan_directory (const char *path, const char *function);
+
+const char *
 __vala_rt_find_function_internal_file (const char *function)
 {
   errno = 0;
@@ -38,47 +42,64 @@ __vala_rt_find_function_internal_file (const char *function)
       char path[BUF_SIZE] = { 0 };
       strcat (path, __vala_debug_prefix);
       strcat (path, VALA_DEBUG_PATH);
-      int fd = open (path, O_RDONLY | O_DIRECTORY);
-      if (fd == -1)
+      const char *r = __vala_rt_scan_directory (path, function);
+      if (r)
         {
-          perror ("open");
-          goto next_try;
+          return r;
         }
-      while (1)
+      memset (path, 0, BUF_SIZE);
+      strcat (path, __vala_debug_prefix);
+      strcat (path, LOCAL_VALA_DEBUG_PATH);
+      r = __vala_rt_scan_directory (path, function);
+      if (r)
         {
-          char buf[BUF_SIZE];
-          int  nread = syscall (SYS_getdents, fd, buf, BUF_SIZE);
-          if (nread <= 0)
-            break;
-          for (long bpos = 0; bpos < nread;)
-            {
-              struct linux_dirent *d = (struct linux_dirent *)(buf + bpos);
-              char                 d_type = *(buf + bpos + d->d_reclen - 1);
-              size_t               len = strlen (d->d_name);
-              if (d_type == DT_REG && len >= 5 && memcmp (&d->d_name[len - 5], ".vdbg", 5) == 0)
-                {
-                  const char *demangled = __vala_rt_load_from_rt (path, d->d_name, function);
-                  if (demangled)
-                    {
-                      close (fd);
-                      return demangled;
-                    }
-                }
-              bpos += d->d_reclen;
-            }
+          return r;
         }
-      close (fd);
     }
-next_try:
-  if (__vala_extra_debug_files)
+  if (__vala_extra_debug_directories)
     {
-      for (size_t i = 0; __vala_extra_debug_files[i]; i++)
+      for (size_t i = 0; __vala_extra_debug_directories[i]; i++)
         {
-          const char *demangled = __vala_rt_load_from_file (__vala_extra_debug_files[i], function);
+          const char *demangled = __vala_rt_scan_directory (__vala_extra_debug_directories[i], function);
           if (demangled)
             return demangled;
         }
     }
+  return NULL;
+}
+
+const char *
+__vala_rt_scan_directory (const char *path, const char *function)
+{
+  int fd = open (path, O_RDONLY | O_DIRECTORY);
+  if (fd == -1)
+    {
+      return NULL;
+    }
+  while (1)
+    {
+      char buf[BUF_SIZE];
+      int  nread = syscall (SYS_getdents, fd, buf, BUF_SIZE);
+      if (nread <= 0)
+        break;
+      for (long bpos = 0; bpos < nread;)
+        {
+          struct linux_dirent *d = (struct linux_dirent *)(buf + bpos);
+          char                 d_type = *(buf + bpos + d->d_reclen - 1);
+          size_t               len = strlen (d->d_name);
+          if (d_type == DT_REG && len >= 5 && memcmp (&d->d_name[len - 5], ".vdbg", 5) == 0)
+            {
+              const char *demangled = __vala_rt_load_from_rt (path, d->d_name, function);
+              if (demangled)
+                {
+                  close (fd);
+                  return demangled;
+                }
+            }
+          bpos += d->d_reclen;
+        }
+    }
+  close (fd);
   return NULL;
 }
 
