@@ -447,10 +447,7 @@ __vala_rt_find_function (const char                            *function,
     {
       return "main";
     }
-  const char *r = __vala_rt_find_function_internal_direct (function);
-  if (r)
-    return r;
-  r = __vala_rt_find_function_internal_file (function);
+  const char *r = __vala_rt_find_function_internal_file (function);
   if (r)
     return r;
   if (data && len)

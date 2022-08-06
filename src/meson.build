@@ -2,7 +2,6 @@ api_version = '0.1'
 
 vala_rt_sources = [
   'vala-rt.c',
-  'backend_direct.c',
   'backend_separate.c',
   'backend_section.c',
   'copied.c'

@@ -24,12 +24,6 @@
 #include "vala_rt-version.h"
 #undef VALA_RT_INSIDE
 
-struct vala_mappings
-{
-  const char *function_name;
-  const char *demangled;
-};
-
 struct vala_signal_mappings
 {
   const char c_function_name[255];
