@@ -5,8 +5,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
 #define MAGIC_HEADER "VALA_DEBUG_INFO1"
+
 const char *
 __vala_rt_find_function_internal_section (const char *function_name, const void *data, size_t len)
 {

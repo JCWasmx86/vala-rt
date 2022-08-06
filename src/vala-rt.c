@@ -45,9 +45,8 @@ __vala_rt_find_signal (const char *library, const char *function_name);
 static void
 __vala_rt_format_signal_name (char *into, const char *demangled);
 static void
-find_section_in_elf (Elf *elf, const char *name, void **ptr, size_t *len);
+__vala_rt_find_section_in_elf (Elf *elf, const char *name, void **ptr, size_t *len);
 
-// 24 bytes on amd64
 struct mapping_holder
 {
   char                              *library_path;
@@ -194,18 +193,18 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
       void        *section_data = NULL;
       size_t       section_size = 0;
       Elf         *second_elf = NULL;
-      find_section_in_elf (elf, ".debug_info_vala", &section_data, &section_size);
+      __vala_rt_find_section_in_elf (elf, ".debug_info_vala", &section_data, &section_size);
       if (!section_data)
         {
-          find_section_in_elf (elf, ".zdebug_info_vala", &section_data, &section_size);
+          __vala_rt_find_section_in_elf (elf, ".zdebug_info_vala", &section_data, &section_size);
         }
       if (!section_data && alt_dwarf)
         {
           elf = dwarf_getelf (alt_dwarf);
-          find_section_in_elf (elf, ".debug_info_vala", &section_data, &section_size);
+          __vala_rt_find_section_in_elf (elf, ".debug_info_vala", &section_data, &section_size);
           if (!section_data)
             {
-              find_section_in_elf (elf, ".zdebug_info_vala", &section_data, &section_size);
+              __vala_rt_find_section_in_elf (elf, ".zdebug_info_vala", &section_data, &section_size);
             }
         }
       if (!section_data && dwarf)
@@ -214,10 +213,10 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
           if (fd > 0)
             {
               second_elf = elf_begin (fd, ELF_C_READ, NULL);
-              find_section_in_elf (second_elf, ".debug_info_vala", &section_data, &section_size);
+              __vala_rt_find_section_in_elf (second_elf, ".debug_info_vala", &section_data, &section_size);
               if (!section_data)
                 {
-                  find_section_in_elf (second_elf, ".zdebug_info_vala", &section_data, &section_size);
+                  __vala_rt_find_section_in_elf (second_elf, ".zdebug_info_vala", &section_data, &section_size);
                 }
             }
         }
@@ -232,10 +231,10 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
           if (fd > 0)
             {
               second_elf = elf_begin (fd, ELF_C_READ, NULL);
-              find_section_in_elf (second_elf, ".debug_info_vala", &section_data, &section_size);
+              __vala_rt_find_section_in_elf (second_elf, ".debug_info_vala", &section_data, &section_size);
               if (!section_data)
                 {
-                  find_section_in_elf (second_elf, ".zdebug_info_vala", &section_data, &section_size);
+                  __vala_rt_find_section_in_elf (second_elf, ".zdebug_info_vala", &section_data, &section_size);
                 }
             }
         }
@@ -492,7 +491,7 @@ __vala_rt_format_signal_name (char *into, const char *demangled)
 }
 
 static void
-find_section_in_elf (Elf *elf, const char *sname, void **ptr, size_t *len)
+__vala_rt_find_section_in_elf (Elf *elf, const char *sname, void **ptr, size_t *len)
 {
   size_t num_sections = 0;
   elf_getshdrnum (elf, &num_sections);

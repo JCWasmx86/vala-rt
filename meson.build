@@ -19,7 +19,8 @@ add_project_arguments([
   '-I' + meson.project_build_root(),
   '-fno-omit-frame-pointer',
   '-g3',
-  '-pedantic'
+  '-pedantic',
+  '-fanalyzer'
 ], language: 'c')
 
 

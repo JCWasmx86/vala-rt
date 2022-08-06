@@ -44,7 +44,7 @@
 #define DEBUGINFO_PATH "/usr/lib/debug"
 
 static char *
-__libdw_filepath (const char *debugdir, const char *dir, const char *file)
+__vala_rt__libdw_filepath (const char *debugdir, const char *dir, const char *file)
 {
   if (file == NULL)
     return NULL;
@@ -150,7 +150,7 @@ __vala_rt_find_debug_altlink (Dwarf *dbg)
   /* Fall back on (possible relative) alt file path.  */
   if (fd < 0)
     {
-      char *altpath = __libdw_filepath ((const char *)((uintptr_t)dbg) + sizeof (void *), NULL, altname);
+      char *altpath = __vala_rt__libdw_filepath ((const char *)((uintptr_t)dbg) + sizeof (void *), NULL, altname);
       if (altpath != NULL)
         {
           fd = TEMP_FAILURE_RETRY (open (altpath, O_RDONLY));
