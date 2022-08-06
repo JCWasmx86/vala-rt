@@ -41,7 +41,7 @@ extern const char **__vala_extra_debug_directories;
 
 extern void
 __vala_init (void);
-__attribute__ ((__visibility__ ("default"))) extern void
+extern void
 __vala_register_signal_mappings (const char                        *library_path,
                                  const struct vala_signal_mappings *mappings,
                                  size_t                             n_mappings);

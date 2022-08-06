@@ -485,7 +485,7 @@ __vala_rt_find_signal (const char *library, const char *function_name)
   return NULL;
 }
 
-__attribute__ ((__visibility__ ("default"))) void
+void
 __vala_register_signal_mappings (const char                        *library_path,
                                  const struct vala_signal_mappings *mappings,
                                  size_t                             n_mappings)
