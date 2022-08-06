@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <assert.h>
 #define UNW_LOCAL_ONLY
 #define _GNU_SOURCE
 
@@ -46,18 +47,19 @@ __vala_rt_format_signal_name (char *into, const char *demangled);
 static void
 find_section_in_elf (Elf *elf, const char *name, void **ptr, size_t *len);
 
+// 24 bytes on amd64
 struct mapping_holder
 {
   char                              *library_path;
-  size_t                             n_mappings;
   const struct vala_signal_mappings *mappings;
+  size_t                             n_mappings;
 };
 
 struct stack_frame
 {
   char       function_name[128];
-  char       library_name[255];
-  char       filename[255];
+  char       library_name[256];
+  char       filename[256];
   int        lineno;
   unw_word_t ip;
   int        skip : 2;
@@ -488,6 +490,7 @@ __vala_rt_format_signal_name (char *into, const char *demangled)
   strcat (into, demangled);
   strcat (into, ">>");
 }
+
 static void
 find_section_in_elf (Elf *elf, const char *sname, void **ptr, size_t *len)
 {
