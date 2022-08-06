@@ -15,7 +15,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include <assert.h>
 #define UNW_LOCAL_ONLY
 #define _GNU_SOURCE
 
@@ -39,7 +38,7 @@ __vala_rt_handle_signal (int signo, siginfo_t *info, void *_ctx);
 static void
 __vala_rt_add_handler (int signum);
 static const char *
-__vala_rt_find_function (const char *function, unw_cursor_t *cursor, void *section, size_t section_len);
+__vala_rt_find_function (const char *function, unw_cursor_t *cursor, void *section, size_t section_len, int compressed);
 static const char *
 __vala_rt_find_signal (const char *library, const char *function_name);
 static void
@@ -193,10 +192,15 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
       void        *section_data = NULL;
       size_t       section_size = 0;
       Elf         *second_elf = NULL;
+      int          compressed = 0;
       __vala_rt_find_section_in_elf (elf, ".debug_info_vala", &section_data, &section_size);
       if (!section_data)
         {
           __vala_rt_find_section_in_elf (elf, ".zdebug_info_vala", &section_data, &section_size);
+          if (section_data)
+            {
+              compressed = 1;
+            }
         }
       if (!section_data && alt_dwarf)
         {
@@ -205,6 +209,10 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
           if (!section_data)
             {
               __vala_rt_find_section_in_elf (elf, ".zdebug_info_vala", &section_data, &section_size);
+              if (section_data)
+                {
+                  compressed = 1;
+                }
             }
         }
       if (!section_data && dwarf)
@@ -217,6 +225,10 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
               if (!section_data)
                 {
                   __vala_rt_find_section_in_elf (second_elf, ".zdebug_info_vala", &section_data, &section_size);
+                  if (section_data)
+                    {
+                      compressed = 1;
+                    }
                 }
             }
         }
@@ -235,13 +247,17 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
               if (!section_data)
                 {
                   __vala_rt_find_section_in_elf (second_elf, ".zdebug_info_vala", &section_data, &section_size);
+                  if (section_data)
+                    {
+                      compressed = 1;
+                    }
                 }
             }
         }
       saved_stackframes[n_saved_stackframes].ip = ip;
       saved_stackframes[n_saved_stackframes].skip = 0;
       const char *function_name = dwfl_module_addrname (module, ipaddr);
-      const char *real_name = __vala_rt_find_function (function_name, &cursor, section_data, section_size);
+      const char *real_name = __vala_rt_find_function (function_name, &cursor, section_data, section_size, compressed);
       if (real_name)
         {
           strcpy (saved_stackframes[n_saved_stackframes].function_name, real_name);
@@ -416,7 +432,11 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
 }
 
 static const char *
-__vala_rt_find_function (const char *function, __attribute__ ((unused)) unw_cursor_t *cursor, void *data, size_t len)
+__vala_rt_find_function (const char                            *function,
+                         __attribute__ ((unused)) unw_cursor_t *cursor,
+                         void                                  *data,
+                         size_t                                 len,
+                         int                                    compressed)
 {
   if (function == NULL)
     return NULL;
@@ -435,7 +455,7 @@ __vala_rt_find_function (const char *function, __attribute__ ((unused)) unw_curs
     return r;
   if (data && len)
     {
-      const char *r1 = __vala_rt_find_function_internal_section (function, data, len);
+      const char *r1 = __vala_rt_find_function_internal_section (function, data, len, compressed);
       if (r1)
         return r1;
     }

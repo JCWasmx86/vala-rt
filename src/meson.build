@@ -33,7 +33,8 @@ configure_file(
 
 vala_rt_deps = [
   dependency('libunwind'),
-  dependency('libdw')
+  dependency('libdw'),
+  dependency('zlib'),
 ]
 
 vala_rt_lib = static_library('vala-rt-' + api_version,
