@@ -12,7 +12,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install dependencies
-      run: sudo apt install -y clang-tools clang libelf-dev gcc libdwarf-dev libunwind-dev ninja-build python3 python3-pip python3-setuptools python3-wheel ninja-build elfutils libdw-dev
+      run: sudo apt install -y clang-tools clang libelf-dev gcc libdwarf-dev zlib-dev libunwind-dev ninja-build python3 python3-pip python3-setuptools python3-wheel ninja-build elfutils libdw-dev
     - name: Install meson
       run: pip3 install meson
     - name: Configure
