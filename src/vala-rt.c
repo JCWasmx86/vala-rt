@@ -34,17 +34,17 @@
 #define MAX(a, b) (a > b ? a : b)
 
 static void
-__vala_rt_handle_signal (int signo, siginfo_t *info, void *_ctx);
+__vala_rt_handle_signal (int, siginfo_t *, void *);
 static void
-__vala_rt_add_handler (int signum);
+__vala_rt_add_handler (int);
 static const char *
-__vala_rt_find_function (const char *function, unw_cursor_t *cursor, void *section, size_t section_len, int compressed);
+__vala_rt_find_function (const char *, unw_cursor_t *, void *, size_t, int);
 static const char *
-__vala_rt_find_signal (const char *library, const char *function_name);
+__vala_rt_find_signal (const char *, const char *);
 static void
-__vala_rt_format_signal_name (char *into, const char *demangled);
+__vala_rt_format_signal_name (char *, const char *);
 static void
-__vala_rt_find_section_in_elf (Elf *elf, const char *name, void **ptr, size_t *len);
+__vala_rt_find_section_in_elf (Elf *, const char *, void **, size_t *);
 
 struct mapping_holder
 {

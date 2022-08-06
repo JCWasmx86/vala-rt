@@ -7,8 +7,6 @@ project('vala-rt', 'c',
                    ],
 )
 
-
-
 config_h = configuration_data()
 config_h.set_quoted('PACKAGE_VERSION', meson.project_version())
 configure_file(

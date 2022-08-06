@@ -36,6 +36,4 @@ extern const char **__vala_extra_debug_directories;
 extern void
 __vala_init (void);
 extern void
-__vala_register_signal_mappings (const char                        *library_path,
-                                 const struct vala_signal_mappings *mappings,
-                                 size_t                             n_mappings);
+__vala_register_signal_mappings (const char *, const struct vala_signal_mappings *, size_t);

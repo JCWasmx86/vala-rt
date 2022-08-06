@@ -12,7 +12,7 @@
 static char __vala_rt_section_scratch_buffer[BUF_SIZE] = { 0 };
 
 const char *
-__vala_rt_find_function_internal_section_compressed (const char *function_name, const void *data, size_t len);
+__vala_rt_find_function_internal_section_compressed (const char *, const void *, size_t);
 
 const char *
 __vala_rt_find_function_internal_section (const char *function_name, const void *data, size_t len, int compressed)

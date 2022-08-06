@@ -24,13 +24,11 @@ struct linux_dirent
 static char __vala_rt_scratch_buffer[BUF_SIZE] = { 0 };
 
 const char *
-__vala_rt_load_from_rt (const char *prefix, const char *file, const char *function);
-
+__vala_rt_load_from_rt (const char *, const char *, const char *);
 const char *
-__vala_rt_load_from_file (const char *file, const char *function);
-
+__vala_rt_load_from_file (const char *, const char *);
 const char *
-__vala_rt_scan_directory (const char *path, const char *function);
+__vala_rt_scan_directory (const char *, const char *);
 
 const char *
 __vala_rt_find_function_internal_file (const char *function)
