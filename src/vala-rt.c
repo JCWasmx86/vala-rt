@@ -232,52 +232,8 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                 }
             }
         }
-      if (!section_data && dwarf)
-        {
-          int fd = __vala_rt_find_debug_altlink (dwarf);
-          if (fd > 0)
-            {
-              second_elf = elf_begin (fd, ELF_C_READ, NULL);
-              __vala_rt_find_section_in_elf (second_elf, ".debug_info_vala", &section_data, &section_size);
-              if (!section_data)
-                {
-                  __vala_rt_find_section_in_elf (second_elf, ".zdebug_info_vala", &section_data, &section_size);
-                  if (section_data)
-                    {
-                      compressed = 1;
-                    }
-                }
-            }
-        }
       if (!section_data)
         {
-          if (second_elf)
-            {
-              elf_end (second_elf);
-              second_elf = NULL;
-            }
-          int fd = __vala_rt_find_debuglink (module, elf);
-          if (fd > 0)
-            {
-              second_elf = elf_begin (fd, ELF_C_READ, NULL);
-              __vala_rt_find_section_in_elf (second_elf, ".debug_info_vala", &section_data, &section_size);
-              if (!section_data)
-                {
-                  __vala_rt_find_section_in_elf (second_elf, ".zdebug_info_vala", &section_data, &section_size);
-                  if (section_data)
-                    {
-                      compressed = 1;
-                    }
-                }
-            }
-        }
-      if (!section_data)
-        {
-          if (second_elf)
-            {
-              elf_end (second_elf);
-              second_elf = NULL;
-            }
           int fd = __vala_rt_find_debuginfo_by_id (module);
           if (fd > 0)
             {
