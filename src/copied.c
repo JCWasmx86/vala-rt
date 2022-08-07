@@ -99,14 +99,12 @@ __vala_rt_find_debuglink (Dwfl_Module *module, Elf *elf)
   char        data[512] = { 0 };
   GElf_Word   word;
   const char *name = dwelf_elf_gnu_debuglink (elf, &word);
-  fprintf (stderr, "Debuglink = %s\n", name);
   if (!name)
     return -1;
   const char *mainfile = NULL;
   Dwarf_Addr  low = 0;
   const char *modname = dwfl_module_info (module, NULL, &low, NULL, NULL, NULL, &mainfile, NULL);
   int         fd = dwfl_standard_find_debuginfo (module, NULL, modname, low, mainfile, name, word, (char **)&data);
-  fprintf (stderr, "fd=%d mainfile=%s, modname=%s data=%s\n", fd, mainfile, modname, data);
   if (fd <= 0)
     return -1;
   return fd;
@@ -119,8 +117,6 @@ __vala_rt_find_debug_altlink (Dwarf *dbg)
   const void *build_id;
   assert (dbg);
   ssize_t build_id_len = dwelf_dwarf_gnu_debugaltlink (dbg, &altname, &build_id);
-
-  fprintf (stderr, "Buildidlen = %zx\n", build_id_len);
 
   /* Couldn't even get the debugaltlink.  It probably doesn't exist.  */
   if (build_id_len <= 0)
@@ -147,7 +143,6 @@ __vala_rt_find_debug_altlink (Dwarf *dbg)
                  "%02" PRIx8,
                  (uint8_t)id[i]);
       strcpy (&id_path[sizeof DEBUGINFO_PATH - 1 + sizeof "/.build-id/" - 1 + 3 + (id_len - 1) * 2], ".debug");
-      fprintf (stderr, "Trying to open %s\n", id_path);
       fd = TEMP_FAILURE_RETRY (open (id_path, O_RDONLY));
     }
 
@@ -155,7 +150,6 @@ __vala_rt_find_debug_altlink (Dwarf *dbg)
   if (fd < 0)
     {
       char *altpath = __vala_rt__libdw_filepath ((const char *)((uintptr_t)dbg) + sizeof (void *), NULL, altname);
-      fprintf (stderr, "Trying to open %s (%s)\n", altpath, (const char *)((uintptr_t)dbg) + sizeof (void *));
       if (altpath != NULL)
         {
           fd = TEMP_FAILURE_RETRY (open (altpath, O_RDONLY));

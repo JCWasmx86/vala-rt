@@ -73,8 +73,8 @@ static struct stack_frame __vala_rt_saved_stackframes[MAX_BACKTRACE_DEPTH];
 static int                __vala_rt_n_saved_stackframes;
 static int                __vala_rt_handler_triggered = 0;
 static int                __vala_rt_already_initialized = 0;
-static const char         __vala_rt_debuginfod_location1[256] = { 0 };
-static const char         __vala_rt_debuginfod_location2[256] = { 0 };
+static char               __vala_rt_debuginfod_location1[256] = { 0 };
+static char               __vala_rt_debuginfod_location2[256] = { 0 };
 
 void
 __vala_init (void)
@@ -210,8 +210,6 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
       size_t       section_size = 0;
       Elf         *second_elf = NULL;
       int          compressed = 0;
-      fprintf (
-          stderr, "Looking for sections in %s\n", dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL));
       __vala_rt_find_section_in_elf (elf, ".debug_info_vala", &section_data, &section_size);
       if (!section_data)
         {
@@ -221,13 +219,8 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
               compressed = 1;
             }
         }
-      if (section_data)
-        {
-          fprintf (stderr, "Was in ELF!\n");
-        }
       if (!section_data && alt_dwarf)
         {
-          fprintf (stderr, "Next try - alt_dwarf\n");
           elf = dwarf_getelf (alt_dwarf);
           __vala_rt_find_section_in_elf (elf, ".debug_info_vala", &section_data, &section_size);
           if (!section_data)
@@ -238,14 +231,9 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                   compressed = 1;
                 }
             }
-          if (section_data)
-            {
-              fprintf (stderr, "Was in alt_dwarf!\n");
-            }
         }
       if (!section_data && dwarf)
         {
-          fprintf (stderr, "Next try - altlink\n");
           int fd = __vala_rt_find_debug_altlink (dwarf);
           if (fd > 0)
             {
@@ -260,10 +248,6 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                     }
                 }
             }
-          if (section_data)
-            {
-              fprintf (stderr, "Was in altlink!\n");
-            }
         }
       if (!section_data)
         {
@@ -272,7 +256,6 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
               elf_end (second_elf);
               second_elf = NULL;
             }
-          fprintf (stderr, "Next try - debug_link\n");
           int fd = __vala_rt_find_debuglink (module, elf);
           if (fd > 0)
             {
@@ -287,10 +270,6 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                     }
                 }
             }
-          if (section_data)
-            {
-              fprintf (stderr, "Was in debug_link!\n");
-            }
         }
       if (!section_data)
         {
@@ -299,7 +278,6 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
               elf_end (second_elf);
               second_elf = NULL;
             }
-          fprintf (stderr, "Next try - custom buildid\n");
           int fd = __vala_rt_find_debuginfo_by_id (module);
           if (fd > 0)
             {
@@ -314,12 +292,7 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                     }
                 }
             }
-          if (section_data)
-            {
-              fprintf (stderr, "Was in debug_link!\n");
-            }
         }
-      fprintf (stderr, ">> Section %p (%zx)\n", section_data, section_size);
       __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].ip = ip;
       __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].skip = 0;
       const char *function_name = dwfl_module_addrname (module, ipaddr);
@@ -354,7 +327,6 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
       // TODO: Match _vala_main.constprop.0
       if (function_name && (!strcmp ("_vala_main", function_name) || !strcmp ("__libc_start_call_main", function_name)))
         break;
-      fprintf (stderr, "======================================================\n");
       dwfl_end (dwfl);
       frame++;
     }
@@ -583,7 +555,6 @@ __vala_rt_find_section_in_elf (Elf *elf, const char *sname, void **ptr, size_t *
   elf_getshdrnum (elf, &num_sections);
   size_t shstrndx;
   elf_getshdrstrndx (elf, &shstrndx);
-  fprintf (stderr, ">> Looking for %s\n", sname);
   for (size_t i = 0; i < num_sections; i++)
     {
       Elf_Scn  *scn = elf_getscn (elf, i);
@@ -610,8 +581,7 @@ __vala_rt_find_debuginfo_by_id (Dwfl_Module *module)
   int ret = dwfl_module_build_id (module, (const unsigned char **)&bits, &addr);
   if (ret <= 0)
     return -1;
-  uint8_t *id = (uint8_t *)addr;
-  fprintf (stderr, "\n");
+  uint8_t    *id = (uint8_t *)addr;
   char        path[512];
   const char *prefixes_to_try[6]
       = { "/usr/lib/debug/.build-id/",       "/usr/local/lib/debug/.build-id/", "/app/lib/debug/.build-id/",
@@ -632,7 +602,6 @@ __vala_rt_find_debuginfo_by_id (Dwfl_Module *module)
           base_len += 2;
         }
       strcat (path, ".debug");
-      fprintf (stderr, "Debuginfo path: %s\n", path);
       int fd = open (path, O_RDONLY);
       if (fd < 0)
         {
