@@ -22,8 +22,10 @@
 #include "vala-rt-internal.h"
 #include <dlfcn.h>
 #include <elfutils/libdwfl.h>
+#include <fcntl.h>
 #include <libunwind.h>
 #include <linux/limits.h>
+#include <pwd.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +47,8 @@ static void
 __vala_rt_format_signal_name (char *, const char *);
 static void
 __vala_rt_find_section_in_elf (Elf *, const char *, void **, size_t *);
+static int
+__vala_rt_find_debuginfo_by_id (Dwfl_Module *);
 
 struct mapping_holder
 {
@@ -69,6 +73,8 @@ static struct stack_frame __vala_rt_saved_stackframes[MAX_BACKTRACE_DEPTH];
 static int                __vala_rt_n_saved_stackframes;
 static int                __vala_rt_handler_triggered = 0;
 static int                __vala_rt_already_initialized = 0;
+static const char         __vala_rt_debuginfod_location1[256] = { 0 };
+static const char         __vala_rt_debuginfod_location2[256] = { 0 };
 
 void
 __vala_init (void)
@@ -80,6 +86,17 @@ __vala_init (void)
   __vala_rt_add_handler (SIGILL);
   __vala_rt_add_handler (SIGFPE);
   __vala_rt_add_handler (SIGABRT);
+  if (getenv ("XDG_CACHE_HOME"))
+    {
+      snprintf ((char *)__vala_rt_debuginfod_location1, 255, "%s/debuginfod_client/", getenv ("XDG_CACHE_HOME"));
+    }
+  const char *homedir;
+
+  if ((homedir = getenv ("HOME")) == NULL)
+    {
+      homedir = getpwuid (getuid ())->pw_dir;
+    }
+  snprintf ((char *)__vala_rt_debuginfod_location2, 255, "%s/.cache/debuginfod_client/", homedir);
 }
 
 static void
@@ -204,8 +221,13 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
               compressed = 1;
             }
         }
+      if (section_data)
+        {
+          fprintf (stderr, "Was in ELF!\n");
+        }
       if (!section_data && alt_dwarf)
         {
+          fprintf (stderr, "Next try - alt_dwarf\n");
           elf = dwarf_getelf (alt_dwarf);
           __vala_rt_find_section_in_elf (elf, ".debug_info_vala", &section_data, &section_size);
           if (!section_data)
@@ -216,9 +238,14 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                   compressed = 1;
                 }
             }
+          if (section_data)
+            {
+              fprintf (stderr, "Was in alt_dwarf!\n");
+            }
         }
       if (!section_data && dwarf)
         {
+          fprintf (stderr, "Next try - altlink\n");
           int fd = __vala_rt_find_debug_altlink (dwarf);
           if (fd > 0)
             {
@@ -233,6 +260,10 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                     }
                 }
             }
+          if (section_data)
+            {
+              fprintf (stderr, "Was in altlink!\n");
+            }
         }
       if (!section_data)
         {
@@ -241,6 +272,7 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
               elf_end (second_elf);
               second_elf = NULL;
             }
+          fprintf (stderr, "Next try - debug_link\n");
           int fd = __vala_rt_find_debuglink (module, elf);
           if (fd > 0)
             {
@@ -255,7 +287,39 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                     }
                 }
             }
+          if (section_data)
+            {
+              fprintf (stderr, "Was in debug_link!\n");
+            }
         }
+      if (!section_data)
+        {
+          if (second_elf)
+            {
+              elf_end (second_elf);
+              second_elf = NULL;
+            }
+          fprintf (stderr, "Next try - custom buildid\n");
+          int fd = __vala_rt_find_debuginfo_by_id (module);
+          if (fd > 0)
+            {
+              second_elf = elf_begin (fd, ELF_C_READ, NULL);
+              __vala_rt_find_section_in_elf (second_elf, ".debug_info_vala", &section_data, &section_size);
+              if (!section_data)
+                {
+                  __vala_rt_find_section_in_elf (second_elf, ".zdebug_info_vala", &section_data, &section_size);
+                  if (section_data)
+                    {
+                      compressed = 1;
+                    }
+                }
+            }
+          if (section_data)
+            {
+              fprintf (stderr, "Was in debug_link!\n");
+            }
+        }
+      fprintf (stderr, ">> Section %p (%zx)\n", section_data, section_size);
       __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].ip = ip;
       __vala_rt_saved_stackframes[__vala_rt_n_saved_stackframes].skip = 0;
       const char *function_name = dwfl_module_addrname (module, ipaddr);
@@ -526,7 +590,6 @@ __vala_rt_find_section_in_elf (Elf *elf, const char *sname, void **ptr, size_t *
       GElf_Shdr shdr;
       gelf_getshdr (scn, &shdr);
       const char *name = elf_strptr (elf, shstrndx, shdr.sh_name);
-      // fprintf (stderr, "Found section %s\n", name);
       if (!strcmp (sname, name))
         {
           Elf_Data *data = NULL;
@@ -536,4 +599,46 @@ __vala_rt_find_section_in_elf (Elf *elf, const char *sname, void **ptr, size_t *
           return;
         }
     }
+}
+// Last resort, guessing and hoping the best
+static int
+__vala_rt_find_debuginfo_by_id (Dwfl_Module *module)
+{
+  unsigned char bits[32] = { 0 };
+  GElf_Addr     addr = 0;
+  dwfl_module_getelf (module, &addr);
+  int ret = dwfl_module_build_id (module, (const unsigned char **)&bits, &addr);
+  if (ret <= 0)
+    return -1;
+  uint8_t *id = (uint8_t *)addr;
+  fprintf (stderr, "\n");
+  char        path[512];
+  const char *prefixes_to_try[6]
+      = { "/usr/lib/debug/.build-id/",       "/usr/local/lib/debug/.build-id/", "/app/lib/debug/.build-id/",
+          "/app/local/lib/debug/.build-id/", __vala_rt_debuginfod_location1,    __vala_rt_debuginfod_location2 };
+
+  for (size_t i = 0; i < sizeof (prefixes_to_try) / sizeof (prefixes_to_try[0]); i++)
+    {
+      if (!prefixes_to_try[i][0])
+        continue;
+      memset (path, 0, sizeof (path));
+      strcat (path, prefixes_to_try[i]);
+      size_t base_len = strlen (path);
+      sprintf (&path[base_len], "%x%x/", id[0] >> 4 & 0xf, id[0] & 0xf);
+      base_len += 3;
+      for (int j = 1; j < ret; j++)
+        {
+          sprintf (&path[base_len], "%x%x", id[j] >> 4 & 0xf, id[j] & 0xf);
+          base_len += 2;
+        }
+      strcat (path, ".debug");
+      fprintf (stderr, "Debuginfo path: %s\n", path);
+      int fd = open (path, O_RDONLY);
+      if (fd < 0)
+        {
+          continue;
+        }
+      return fd;
+    }
+  return -1;
 }
