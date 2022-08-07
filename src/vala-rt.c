@@ -193,6 +193,8 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
       size_t       section_size = 0;
       Elf         *second_elf = NULL;
       int          compressed = 0;
+      fprintf (
+          stderr, "Looking for sections in %s\n", dwfl_module_info (module, NULL, NULL, NULL, NULL, NULL, NULL, NULL));
       __vala_rt_find_section_in_elf (elf, ".debug_info_vala", &section_data, &section_size);
       if (!section_data)
         {
@@ -288,6 +290,7 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
       // TODO: Match _vala_main.constprop.0
       if (function_name && (!strcmp ("_vala_main", function_name) || !strcmp ("__libc_start_call_main", function_name)))
         break;
+      fprintf (stderr, "======================================================\n");
       dwfl_end (dwfl);
       frame++;
     }
@@ -516,12 +519,14 @@ __vala_rt_find_section_in_elf (Elf *elf, const char *sname, void **ptr, size_t *
   elf_getshdrnum (elf, &num_sections);
   size_t shstrndx;
   elf_getshdrstrndx (elf, &shstrndx);
+  fprintf (stderr, ">> Looking for %s\n", sname);
   for (size_t i = 0; i < num_sections; i++)
     {
       Elf_Scn  *scn = elf_getscn (elf, i);
       GElf_Shdr shdr;
       gelf_getshdr (scn, &shdr);
       const char *name = elf_strptr (elf, shstrndx, shdr.sh_name);
+      // fprintf (stderr, "Found section %s\n", name);
       if (!strcmp (sname, name))
         {
           Elf_Data *data = NULL;
