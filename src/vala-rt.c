@@ -33,6 +33,9 @@
 
 #define MAX_SIGNAL_MAPPINGS 150
 #define MAX_BACKTRACE_DEPTH 150
+#define MAX_FUNCTIONNAME_LEN 128
+#define DEBUGINFOD_BUFFER_SIZE 256
+#define MAX_NAME_LENGTH 256
 #define MAX(a, b) (a > b ? a : b)
 
 static void
@@ -59,9 +62,9 @@ struct mapping_holder
 
 struct stack_frame
 {
-  char       function_name[128];
-  char       library_name[256];
-  char       filename[256];
+  char       function_name[MAX_FUNCTIONNAME_LEN];
+  char       library_name[MAX_NAME_LENGTH];
+  char       filename[MAX_NAME_LENGTH];
   int        lineno;
   unw_word_t ip;
   int        skip : 2;
@@ -73,8 +76,8 @@ static struct stack_frame __vala_rt_saved_stackframes[MAX_BACKTRACE_DEPTH];
 static int                __vala_rt_n_saved_stackframes;
 static int                __vala_rt_handler_triggered = 0;
 static int                __vala_rt_already_initialized = 0;
-static char               __vala_rt_debuginfod_location1[256] = { 0 };
-static char               __vala_rt_debuginfod_location2[256] = { 0 };
+static char               __vala_rt_debuginfod_location1[DEBUGINFOD_BUFFER_SIZE] = { 0 };
+static char               __vala_rt_debuginfod_location2[DEBUGINFOD_BUFFER_SIZE] = { 0 };
 
 void
 __vala_init (void)
@@ -116,7 +119,9 @@ __vala_rt_add_handler (int signum)
 static void
 print_initial_part (int curr, unw_word_t ip, int max)
 {
-  char data[128] = { 0 };
+  // 32 bytes for the address, 5 bytes for #count, 4 bytes for
+  // <0x and >, anything else is a bit of buffer.
+  char data[48] = { 0 };
   if (max > 100)
     {
       if (curr < 10)

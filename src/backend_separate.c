@@ -12,6 +12,8 @@
 #define BUF_SIZE 1024
 #define VALA_DEBUG_PATH "/share/vala/debug/"
 #define LOCAL_VALA_DEBUG_PATH "/local/share/vala/debug/"
+#define DBG_MAGIC "VDBG"
+#define CURRENT_VERSION 1
 
 struct linux_dirent
 {
@@ -89,7 +91,9 @@ __vala_rt_scan_directory (const char *path, const char *function)
           struct linux_dirent *d = (struct linux_dirent *)(buf + bpos);
           char                 d_type = *(buf + bpos + d->d_reclen - 1);
           size_t               len = strlen (d->d_name);
-          if (d_type == DT_REG && len >= 5 && memcmp (&d->d_name[len - 5], ".vdbg", 5) == 0)
+          size_t               extension_len = strlen (".vdbg");
+          if (d_type == DT_REG && len >= extension_len
+              && memcmp (&d->d_name[len - extension_len], ".vdbg", extension_len) == 0)
             {
               const char *demangled = __vala_rt_load_from_rt (path, d->d_name, function);
               if (demangled)
@@ -125,30 +129,30 @@ __vala_rt_load_from_file (const char *file, const char *function)
       perror ("open");
       return NULL;
     }
-  char    magic[4];
-  ssize_t nread = read (fd, magic, 4);
-  if (nread != 4)
+  char   magic[strlen (DBG_MAGIC)];
+  size_t nread = read (fd, magic, sizeof (magic));
+  if (nread != sizeof (magic))
     {
       goto end;
     }
-  if (memcmp (magic, "VDBG", 4))
+  if (memcmp (magic, DBG_MAGIC, strlen (DBG_MAGIC)))
     {
       goto end;
     }
   uint8_t version;
   nread = read (fd, &version, sizeof (version));
-  if (nread != 1)
+  if (nread != sizeof (version))
     {
       goto end;
     }
-  if (version != 1)
+  if (version != CURRENT_VERSION)
     {
       goto end;
     }
   uint32_t n_functions;
   nread = read (fd, &n_functions, sizeof (n_functions));
   n_functions = __bswap_constant_32 (n_functions);
-  if (nread != 4)
+  if (nread != sizeof (n_functions))
     {
       goto end;
     }
@@ -164,7 +168,7 @@ __vala_rt_load_from_file (const char *file, const char *function)
       char c_name[len + 1];
       memset (c_name, 0, len + 1);
       nread = read (fd, c_name, len + 1);
-      if (nread != len + 1)
+      if (nread != (size_t)len + 1)
         {
           goto end;
         }
@@ -175,7 +179,7 @@ __vala_rt_load_from_file (const char *file, const char *function)
       len = 0;
       nread = read (fd, &len, sizeof (len));
       len = __bswap_constant_16 (len);
-      if (nread != 2)
+      if (nread != sizeof (len))
         {
           goto end;
         }
@@ -199,7 +203,7 @@ __vala_rt_load_from_file (const char *file, const char *function)
           close (fd);
           return __vala_rt_scratch_buffer;
         }
-      if (nread != len + 1)
+      if (nread != (size_t)len + 1)
         {
           goto end;
         }

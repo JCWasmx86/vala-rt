@@ -8,6 +8,8 @@
 #include <zlib.h>
 #define MAGIC_HEADER "VALA_DEBUG_INFO1"
 #define BUF_SIZE 1024
+#define CURRENT_VERSION 1
+#define COMPRESSED_SECTION_BOILERPLATE_LEN 12
 
 static char __vala_rt_section_scratch_buffer[BUF_SIZE] = { 0 };
 
@@ -29,15 +31,15 @@ __vala_rt_find_function_internal_section (const char *function_name, const void 
           uint64_t num_mappings = 0;
           size_t   offset = i + strlen (MAGIC_HEADER);
           uint64_t version = 0;
-          memcpy (&version, &section[offset], 8);
-          offset += 8;
-          if (version != 1)
+          memcpy (&version, &section[offset], sizeof (version));
+          offset += sizeof (version);
+          if (version != CURRENT_VERSION)
             {
               goto end;
             }
-          memcpy (&num_mappings, &section[offset], 8);
+          memcpy (&num_mappings, &section[offset], sizeof (num_mappings));
           num_mappings = __builtin_bswap64 (num_mappings);
-          offset += 8;
+          offset += sizeof (num_mappings);
           for (uint64_t j = 0; j < num_mappings; j++)
             {
               if (offset == len)
@@ -90,8 +92,8 @@ __vala_rt_find_function_internal_section_compressed (const char *function_name, 
     {
       return NULL;
     }
-  strm.avail_in = len - 12;
-  strm.next_in = (Bytef *)data + 12;
+  strm.avail_in = len - COMPRESSED_SECTION_BOILERPLATE_LEN;
+  strm.next_in = (Bytef *)data + COMPRESSED_SECTION_BOILERPLATE_LEN;
   char magic[strlen (MAGIC_HEADER) + 1];
   magic[strlen (MAGIC_HEADER)] = 0;
   int status = __vala_rt_z_read (&strm, magic, strlen (MAGIC_HEADER));
@@ -109,7 +111,7 @@ __vala_rt_find_function_internal_section_compressed (const char *function_name, 
     {
       goto end;
     }
-  if (version != 1)
+  if (version != CURRENT_VERSION)
     {
       goto end;
     }
