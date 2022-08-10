@@ -80,7 +80,9 @@ void
 __vala_init (void)
 {
   if (__vala_rt_already_initialized)
-    return;
+    {
+      return;
+    }
   __vala_rt_already_initialized = 1;
   __vala_rt_add_handler (SIGSEGV);
   __vala_rt_add_handler (SIGILL);
@@ -156,14 +158,18 @@ pad_string (const char *s, size_t len)
 {
   write (STDERR_FILENO, s, strlen (s));
   for (size_t i = strlen (s); i <= len; i++)
-    write (STDERR_FILENO, " ", 1);
+    {
+      write (STDERR_FILENO, " ", 1);
+    }
 }
 
 static void
 __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, __attribute__ ((unused)) void *_ctx)
 {
   if (__vala_rt_handler_triggered)
-    return;
+    {
+      return;
+    }
   __vala_rt_n_saved_stackframes = 0;
   memset (__vala_rt_saved_stackframes, 0, sizeof (__vala_rt_saved_stackframes));
   psignal (signum, "Received signal");
@@ -279,10 +285,14 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
         }
       __vala_rt_n_saved_stackframes++;
       if (second_elf)
-        elf_end (second_elf);
+        {
+          elf_end (second_elf);
+        }
       // TODO: Match _vala_main.constprop.0
       if (function_name && (!strcmp ("_vala_main", function_name) || !strcmp ("__libc_start_call_main", function_name)))
-        break;
+        {
+          break;
+        }
       dwfl_end (dwfl);
       frame++;
     }
@@ -301,9 +311,13 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
     {
       if (!__vala_rt_find_signal (__vala_rt_saved_stackframes[i].library_name,
                                   __vala_rt_saved_stackframes[i].function_name))
-        continue;
+        {
+          continue;
+        }
       if (__vala_rt_saved_stackframes[i].function_name[0] == 1)
-        continue;
+        {
+          continue;
+        }
       if (strcmp (__vala_rt_saved_stackframes[i].library_name, __vala_rt_saved_stackframes[i + 1].library_name) == 0)
         {
           const char *s1 = __vala_rt_find_signal (__vala_rt_saved_stackframes[i].library_name,
@@ -342,7 +356,9 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                     {
                       __vala_rt_format_signal_name (__vala_rt_saved_stackframes[i + 1].function_name, s1);
                       for (int j = 1; j < n_to_skip + 1; j++)
-                        __vala_rt_saved_stackframes[i + 1 + j].skip = 1;
+                        {
+                          __vala_rt_saved_stackframes[i + 1 + j].skip = 1;
+                        }
                       i += n_to_skip;
                     }
                 }
@@ -381,7 +397,9 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
                 {
                   __vala_rt_format_signal_name (__vala_rt_saved_stackframes[i + 1].function_name, s);
                   for (int j = 2; j < n_to_skip + 2; j++)
-                    __vala_rt_saved_stackframes[i + j].skip = 1;
+                    {
+                      __vala_rt_saved_stackframes[i + j].skip = 1;
+                    }
                   i += n_to_skip;
                 }
             }
@@ -409,14 +427,20 @@ __vala_rt_handle_signal (int signum, __attribute__ ((unused)) siginfo_t *info, _
           print_initial_part (cnter, __vala_rt_saved_stackframes[i].ip, n_traces);
           pad_string (__vala_rt_saved_stackframes[i].library_name, max_lname);
           if (__vala_rt_saved_stackframes[i].function_name[0] == 1)
-            goto eol;
+            {
+              goto eol;
+            }
           pad_string (__vala_rt_saved_stackframes[i].function_name, max_fname);
           if (__vala_rt_saved_stackframes[i].filename[0] == 1)
-            goto eol;
+            {
+              goto eol;
+            }
           write (
               STDERR_FILENO, __vala_rt_saved_stackframes[i].filename, strlen (__vala_rt_saved_stackframes[i].filename));
           if (__vala_rt_saved_stackframes[i].lineno == -1)
-            goto eol;
+            {
+              goto eol;
+            }
           write (STDERR_FILENO, ":", 1);
           char data[10] = { 0 };
           sprintf (data, "%d", __vala_rt_saved_stackframes[i].lineno);
@@ -437,9 +461,13 @@ __vala_rt_find_function (const char                            *function,
                          int                                    compressed)
 {
   if (function == NULL)
-    return NULL;
+    {
+      return NULL;
+    }
   if (function[0] == '<')
-    return function;
+    {
+      return function;
+    }
 
   if (strncmp (function, "_vala_main.constprop.", strlen ("_vala_main.constprop.")) == 0)
     {
@@ -447,12 +475,16 @@ __vala_rt_find_function (const char                            *function,
     }
   const char *r = __vala_rt_find_function_internal_file (function);
   if (r)
-    return r;
+    {
+      return r;
+    }
   if (data && len)
     {
       const char *r1 = __vala_rt_find_function_internal_section (function, data, len, compressed);
       if (r1)
-        return r1;
+        {
+          return r1;
+        }
     }
   return function;
 }
@@ -536,7 +568,9 @@ __vala_rt_find_debuginfo_by_id (Dwfl_Module *module)
   dwfl_module_getelf (module, &addr);
   int ret = dwfl_module_build_id (module, (const unsigned char **)&bits, &addr);
   if (ret <= 0)
-    return -1;
+    {
+      return -1;
+    }
   uint8_t    *id = (uint8_t *)addr;
   char        path[512];
   const char *prefixes_to_try[6]
@@ -546,7 +580,9 @@ __vala_rt_find_debuginfo_by_id (Dwfl_Module *module)
   for (size_t i = 0; i < sizeof (prefixes_to_try) / sizeof (prefixes_to_try[0]); i++)
     {
       if (!prefixes_to_try[i][0])
-        continue;
+        {
+          continue;
+        }
       memset (path, 0, sizeof (path));
       strcat (path, prefixes_to_try[i]);
       size_t base_len = strlen (path);

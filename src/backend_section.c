@@ -32,18 +32,24 @@ __vala_rt_find_function_internal_section (const char *function_name, const void 
           memcpy (&version, &section[offset], 8);
           offset += 8;
           if (version != 1)
-            goto end;
+            {
+              goto end;
+            }
           memcpy (&num_mappings, &section[offset], 8);
           num_mappings = __builtin_bswap64 (num_mappings);
           offset += 8;
           for (uint64_t j = 0; j < num_mappings; j++)
             {
               if (offset == len)
-                goto end;
+                {
+                  goto end;
+                }
               uint8_t len_c_name = section[offset];
               offset++;
               if (offset == len || offset + len_c_name >= len)
-                goto end;
+                {
+                  goto end;
+                }
               if (strcmp ((const char *)&section[offset], function_name) == 0)
                 {
                   offset += len_c_name + 2;
@@ -81,41 +87,59 @@ __vala_rt_find_function_internal_section_compressed (const char *function_name, 
   strm.next_in = Z_NULL;
   int ret = inflateInit (&strm);
   if (ret != Z_OK)
-    return NULL;
+    {
+      return NULL;
+    }
   strm.avail_in = len - 12;
   strm.next_in = (Bytef *)data + 12;
   char magic[strlen (MAGIC_HEADER) + 1];
   magic[strlen (MAGIC_HEADER)] = 0;
   int status = __vala_rt_z_read (&strm, magic, strlen (MAGIC_HEADER));
   if (status != Z_OK)
-    goto end;
+    {
+      goto end;
+    }
   if (memcmp (magic, MAGIC_HEADER, strlen (MAGIC_HEADER)))
-    goto end;
+    {
+      goto end;
+    }
   uint64_t version = 0;
   status = __vala_rt_z_read (&strm, &version, sizeof (version));
   if (status != Z_OK)
-    goto end;
+    {
+      goto end;
+    }
   if (version != 1)
-    goto end;
+    {
+      goto end;
+    }
   uint64_t n_mappings = 0;
   status = __vala_rt_z_read (&strm, &n_mappings, sizeof (n_mappings));
   if (status != Z_OK)
-    goto end;
+    {
+      goto end;
+    }
   for (uint64_t i = 0; i < n_mappings; i++)
     {
       uint8_t cname_len = 0;
       status = __vala_rt_z_read (&strm, &cname_len, sizeof (cname_len));
       if (status != Z_OK)
-        goto end;
+        {
+          goto end;
+        }
       char cname[cname_len + 3];
       memset (cname, 0, cname_len + 3);
       status = __vala_rt_z_read (&strm, cname, cname_len + 2);
       if (status != Z_OK)
-        goto end;
+        {
+          goto end;
+        }
       uint8_t fname_len = 0;
       status = __vala_rt_z_read (&strm, &fname_len, sizeof (fname_len));
       if (status != Z_OK)
-        goto end;
+        {
+          goto end;
+        }
       char fname[fname_len + 3];
       memset (fname, 0, fname_len + 3);
       status = __vala_rt_z_read (&strm, fname, fname_len + 2);
@@ -127,7 +151,9 @@ __vala_rt_find_function_internal_section_compressed (const char *function_name, 
           return __vala_rt_section_scratch_buffer;
         }
       if (status != Z_OK)
-        goto end;
+        {
+          goto end;
+        }
     }
 end:
   inflateEnd (&strm);
