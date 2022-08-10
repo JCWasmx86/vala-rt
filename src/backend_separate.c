@@ -15,6 +15,11 @@
 #define DBG_MAGIC "VDBG"
 #define CURRENT_VERSION 1
 
+/*
+ * This backend attempts to extract the debuginfos from the filesystem using the paths
+ * from the __vala_extra_debug_directories and __vala_debug_prefix.
+ */
+
 struct linux_dirent
 {
   unsigned long  d_ino;

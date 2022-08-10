@@ -11,6 +11,11 @@
 #define CURRENT_VERSION 1
 #define COMPRESSED_SECTION_BOILERPLATE_LEN 12
 
+/*
+ * This backend attempts to extract the debuginfos from the ELF file. It is able
+ * read it from zlib-compressed sections, too.
+ */
+
 static char __vala_rt_section_scratch_buffer[BUF_SIZE] = { 0 };
 
 const char *

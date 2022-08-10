@@ -79,6 +79,9 @@ static int                __vala_rt_already_initialized = 0;
 static char               __vala_rt_debuginfod_location1[DEBUGINFOD_BUFFER_SIZE] = { 0 };
 static char               __vala_rt_debuginfod_location2[DEBUGINFOD_BUFFER_SIZE] = { 0 };
 
+// Initializes the runtime, doing these things:
+//   - Installing signal handlers
+//   - Collecting directories where debuginfo could be cached
 void
 __vala_init (void)
 {
